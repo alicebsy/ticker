@@ -2,20 +2,9 @@ import SwiftUI
 
 struct HoldingsView: View {
     @EnvironmentObject var appState: AppState
-<<<<<<< HEAD
-    @State private var selectedHoldingID: Holding.ID?
-    @State private var sortOrder: SortOrder = .value
-    @State private var searchText = ""
-
-    private var selectedHolding: Holding? {
-        guard let id = selectedHoldingID else { return nil }
-        return appState.holdings.first { $0.id == id }
-    }
-=======
     @State private var selectedHolding: Holding?
     @State private var sortOrder: SortOrder = .value
     @State private var searchText = ""
->>>>>>> main
     
     enum SortOrder: String, CaseIterable {
         case name = "이름순"
@@ -110,11 +99,7 @@ struct HoldingsView: View {
     
     // MARK: - Holdings Table
     private var holdingsTable: some View {
-<<<<<<< HEAD
-        Table(of: Holding.self, selection: $selectedHoldingID) {
-=======
         Table(of: Holding.self, selection: $selectedHolding) {
->>>>>>> main
             TableColumn("종목") { holding in
                 HStack(spacing: 12) {
                     AvatarView(name: holding.name, color: holding.avatarColor, size: 32)

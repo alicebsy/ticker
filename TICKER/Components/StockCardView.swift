@@ -23,11 +23,7 @@ struct StockCardView: View {
         Button(action: { onClick?() }) {
             HStack(spacing: 14) {
                 // Avatar
-<<<<<<< HEAD
-                StockCardAvatarView(image: avatar, fallbackText: initials)
-=======
                 AvatarView(image: avatar, fallbackText: initials)
->>>>>>> main
                     .frame(width: 40, height: 40)
 
                 // Name + Price
@@ -83,13 +79,8 @@ struct StockCardView: View {
     }
 }
 
-<<<<<<< HEAD
-// MARK: - StockCardAvatarView (간단 버전)
-private struct StockCardAvatarView: View {
-=======
 // MARK: - AvatarView (간단 버전)
 private struct AvatarView: View {
->>>>>>> main
     let image: NSImage?
     let fallbackText: String
 
