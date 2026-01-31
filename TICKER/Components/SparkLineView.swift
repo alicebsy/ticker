@@ -8,7 +8,10 @@ struct SparklineView: View {
     let data: [Double]
     var lineWidth: CGFloat = 1.5
     var fixedColor: Color? = nil
+<<<<<<< HEAD
     var showGradient: Bool = false
+=======
+>>>>>>> main
 
     // TS 버전: isPositive = last >= first
     private var isPositive: Bool {
