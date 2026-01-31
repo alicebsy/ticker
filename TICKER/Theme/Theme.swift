@@ -278,3 +278,21 @@ struct StatCard: View {
         .cardStyle()
     }
 }
+
+// MARK: - Stat Row
+struct StatRow: View {
+    let label: String
+    let value: String
+    
+    var body: some View {
+        HStack {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(AppTheme.secondaryText)
+            Spacer()
+            Text(value)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(AppTheme.primaryText)
+        }
+    }
+}

@@ -2,119 +2,141 @@ import SwiftUI
 
 struct ListingView: View {
     @EnvironmentObject var appState: AppState
-    @State private var showNewListingSheet = false
     @State private var selectedListing: Listing?
-    
-    var body: some View {
-        HSplitView {
-            // Main Content
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Header with "New Listing" button
-                    headerSection
-                    
-                    // My Stock Price Chart
-                    myStockSection
-                    
-                    // Active Listings
-                    activeListingsSection
-                    
-                    // Completed Listings
-                    completedListingsSection
-                }
-                .padding(24)
-            }
-            .frame(minWidth: 500)
-            
-            // Inspector Panel
-            if let listing = selectedListing {
-                ListingInspector(listing: listing)
-                    .frame(width: 300)
-            }
-        }
-        .navigationTitle("상장")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button(action: { showNewListingSheet = true }) {
-                    Label("새 상장", systemImage: "plus")
-                }
-            }
-        }
-        .sheet(isPresented: $showNewListingSheet) {
-            NewListingSheet()
-        }
+    @State private var chartTimeRange: ChartTimeRange = .week
+
+    enum ChartTimeRange: String, CaseIterable, Identifiable {
+        case day = "1D"
+        case week = "7D"
+        case month = "1M"
+        
+        var id: String { rawValue }
     }
     
-    // MARK: - Header Section
-    private var headerSection: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("내 주가")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("₩18,500")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 32) {
+                // Header (Like PortfolioView)
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("상장")
+                            .font(.title.weight(.bold))
+                            .foregroundStyle(AppTheme.primaryText)
+                        Text("새로운 목표를 상장하고 내 주가를 확인하세요")
+                            .font(.subheadline)
+                            .foregroundStyle(AppTheme.secondaryText)
+                    }
+                    Spacer()
                     
-                    PriceChangeBadge(change: 4.2)
+                    // User Stats Badge
+                    HStack(spacing: 12) {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("현재 내 주가")
+                                .font(.caption)
+                                .foregroundStyle(AppTheme.secondaryText)
+                            Text("₩\(Int(appState.userStockPrice))")
+                                .font(.headline.monospacedDigit())
+                                .foregroundStyle(AppTheme.gain)
+                        }
+                        
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("연승")
+                                .font(.caption)
+                                .foregroundStyle(AppTheme.secondaryText)
+                            Text("\(appState.streak)회")
+                                .font(.headline.monospacedDigit())
+                                .foregroundStyle(AppTheme.neon)
+                        }
+                    }
+                    .padding(12)
+                    .background(AppTheme.cardBackgroundLight)
+                    .cornerRadius(8)
                 }
+                
+                // New Listing Card (Embedded)
+                NewListingCard()
+                
+                // My Stock Chart Section
+                myStockSection
+                
+                // Active Listings Section
+                activeListingsSection
+                
+                // Completed Listings Section
+                completedListingsSection
             }
-            
-            Spacer()
-            
-            Button(action: { showNewListingSheet = true }) {
-                Label("새 할일 상장", systemImage: "plus.circle.fill")
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .padding(24)
         }
+        .background(AppTheme.background)
+        .navigationTitle("") // Hide default navigation title since we have custom header
     }
     
     // MARK: - My Stock Section
     private var myStockSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("내 주가 차트")
-                .font(.headline)
-            
-            VStack(spacing: 16) {
-                SparklineView(
-                    data: [100, 105, 108, 103, 110, 115, 112, 118, 125, 130, 128, 135],
-                    showGradient: true
-                )
-                .frame(height: 150)
+        VStack(alignment: .leading, spacing: 20) {
+            // Header for Chart Section
+            HStack {
+                Label("내 주가 차트", systemImage: "chart.bar.xaxis")
+                    .font(.headline)
+                    .foregroundStyle(AppTheme.primaryText)
                 
-                // Stats Row
-                HStack(spacing: 24) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("시가총액")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text("₩1,850,000")
-                            .font(.subheadline.weight(.semibold))
+                Spacer()
+                
+                HStack(spacing: 0) {
+                    ForEach(ChartTimeRange.allCases) { range in
+                        Button(action: { chartTimeRange = range }) {
+                            Text(range.rawValue)
+                                .font(.caption.weight(.medium))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(chartTimeRange == range ? AppTheme.gain : Color.clear)
+                                .foregroundStyle(chartTimeRange == range ? .black : AppTheme.secondaryText)
+                                .cornerRadius(4)
+                        }
+                        .buttonStyle(.plain)
                     }
+                }
+                .padding(4)
+                .background(Color.black.opacity(0.3))
+                .cornerRadius(6)
+            }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text("\(Int(appState.userStockPrice))P")
+                        .font(.system(size: 36, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppTheme.primaryText)
                     
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("거래량")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text("324주")
-                            .font(.subheadline.weight(.semibold))
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.up.right")
+                        Text("+3.85%")
                     }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.gain)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(AppTheme.gain.opacity(0.1))
+                    .cornerRadius(4)
                     
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("투자자")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text("12명")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                    
-                    Spacer()
+                    Text("연속 \(appState.streak)일 상승")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.secondaryText)
                 }
             }
-            .padding()
-            .cardStyle()
+            
+            // Zoomable Chart
+            ZoomableChartView(
+                data: appState.userStockHistory,
+                minVisiblePoints: 5
+            )
+            .frame(height: 250)
+            .background(Color.black.opacity(0.2))
+            .cornerRadius(12)
+        }
+        .padding(24)
+        .cardStyle()
+        .onAppear {
+            appState.checkDeadlines()
         }
     }
     
@@ -122,27 +144,44 @@ struct ListingView: View {
     private var activeListingsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("상장 중인 종목")
+                Label("상장 중인 종목", systemImage: "chart.line.uptrend.xyaxis")
                     .font(.headline)
+                    .foregroundStyle(AppTheme.gain)
                 
                 Spacer()
-                
-                Text("\(appState.myListings.filter { $0.isActive }.count)개")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
             }
             
-            VStack(spacing: 12) {
+            VStack(spacing: 0) {
+                // Table Header
+                HStack {
+                    Text("종목명")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text("마감일")
+                        .frame(width: 100, alignment: .leading)
+                    Text("보상")
+                        .frame(width: 80, alignment: .leading)
+                    Text("진행률")
+                        .frame(width: 60, alignment: .leading)
+                    Text("액션")
+                        .frame(width: 180, alignment: .trailing)
+                }
+                .font(.caption)
+                .foregroundStyle(AppTheme.secondaryText)
+                .padding(.horizontal)
+                .padding(.bottom, 12)
+                
+                Divider()
+                    .background(AppTheme.border)
+                
                 ForEach(appState.myListings.filter { $0.isActive }) { listing in
-                    ListingRow(listing: listing, isSelected: selectedListing?.id == listing.id)
-                        .onTapGesture {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                selectedListing = listing
-                            }
-                        }
+                    ListingTableRow(listing: listing)
+                    Divider()
+                        .background(AppTheme.border)
                 }
             }
         }
+        .padding(24)
+        .cardStyle()
     }
     
     // MARK: - Completed Listings Section
@@ -150,83 +189,413 @@ struct ListingView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("완료된 상장")
                 .font(.headline)
+                .foregroundStyle(AppTheme.secondaryText)
             
             VStack(spacing: 8) {
-                CompletedListingRow(title: "Swift 공부하기", result: .success, reward: 15000)
-                CompletedListingRow(title: "매일 운동", result: .failure, penalty: -5000)
-                CompletedListingRow(title: "독서 모임 참석", result: .success, reward: 8000)
+                // Filter actual completed listings
+                ForEach(appState.myListings.filter { !$0.isActive }) { listing in
+                     CompletedListingRow(
+                        title: listing.title,
+                        result: listing.change >= 0 ? .success : .failure,
+                        reward: Int(listing.initialPrice),
+                        penalty: Int(abs(listing.change)) // Dynamic penalty display
+                    )
+                }
             }
         }
     }
 }
 
-// MARK: - Listing Row
-struct ListingRow: View {
+// MARK: - Listing Table Row
+struct ListingTableRow: View {
     let listing: Listing
-    var isSelected: Bool = false
+    @EnvironmentObject var appState: AppState
+    @State private var showTimeStopAlert = false
     
+    // Computed binding to update the specific listing in AppState
+    private var listingBinding: Binding<Listing>? {
+        guard let index = appState.myListings.firstIndex(where: { $0.id == listing.id }) else { return nil }
+        return $appState.myListings[index]
+    }
+
     var body: some View {
-        HStack(spacing: 16) {
-            // Category Icon
-            ZStack {
-                Circle()
-                    .fill(listing.category.color.opacity(0.15))
-                    .frame(width: 44, height: 44)
-                
-                Image(systemName: listing.category.icon)
-                    .foregroundStyle(listing.category.color)
-            }
-            
-            // Info
+        HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text(listing.title)
-                    .font(.subheadline.weight(.semibold))
-                
-                HStack(spacing: 8) {
-                    Text(listing.category.rawValue)
-                        .font(.caption)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(listing.category.color.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(AppTheme.primaryText)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            
+            HStack(spacing: 4) {
+                Image(systemName: "clock")
+                Text(formatDate(listing.deadline))
+            }
+            .font(.caption)
+            .foregroundStyle(AppTheme.secondaryText)
+            .frame(width: 100, alignment: .leading)
+            
+            Text("₩\(Int(listing.currentPrice))")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(AppTheme.gain)
+                .frame(width: 80, alignment: .leading)
+            
+            // Progress Section with Slider
+            if let binding = listingBinding {
+                VStack(spacing: 2) {
+                    HStack {
+                        Text("\(Int(binding.progress.wrappedValue * 100))%")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(AppTheme.gain)
+                        Spacer()
+                    }
                     
-                    Text("D-\(daysRemaining)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Slider(value: binding.progress, in: 0...1)
+                        .tint(AppTheme.gain)
+                        .scaleEffect(0.8) // Make it a bit smaller to fit
+                        .frame(height: 10)
+                }
+                .frame(width: 60)
+            } else {
+                Text("\(Int(listing.progress * 100))%")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .frame(width: 60, alignment: .leading)
+            }
+            
+            HStack(spacing: 8) {
+                // Sell Button
+                Button(action: { completeListing(success: true) }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark")
+                        Text("매도")
+                    }
+                    .font(.caption.weight(.medium))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(AppTheme.gain)
+                    .foregroundStyle(.black)
+                    .cornerRadius(4)
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                // Time Stop Button
+                let ticketCount = appState.mySkills["시간 정지"] ?? 0
+                Button(action: {
+                    if ticketCount > 0 {
+                        showTimeStopAlert = true
+                    }
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                        Text("존버 (\(ticketCount))")
+                    }
+                    .font(.caption.weight(.medium))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(ticketCount > 0 ? Color.white.opacity(0.1) : Color.black.opacity(0.3))
+                    .foregroundStyle(ticketCount > 0 ? AppTheme.primaryText : AppTheme.secondaryText)
+                    .cornerRadius(4)
+                }
+                .disabled(ticketCount <= 0)
+                .buttonStyle(PlainButtonStyle())
+                .alert("시간 정지 사용", isPresented: $showTimeStopAlert) {
+                    Button("사용", role: .none) {
+                        useTimeStop()
+                    }
+                    Button("취소", role: .cancel) {}
+                } message: {
+                    Text("마감일을 하루 연장하시겠습니까?\n남은 '시간 정지' 스킬: \(ticketCount)개")
                 }
             }
-            
-            Spacer()
-            
-            // Progress
-            VStack(alignment: .trailing, spacing: 4) {
-                Text("\(Int(listing.progress * 100))%")
-                    .font(.subheadline.weight(.semibold))
-                
-                ProgressView(value: listing.progress)
-                    .frame(width: 80)
-                    .tint(listing.category.color)
-            }
-            
-            // Price Change
-            VStack(alignment: .trailing, spacing: 4) {
-                Text("₩\(Int(listing.currentPrice))")
-                    .font(.subheadline.weight(.semibold))
-                
-                PriceChangeBadge(change: listing.change)
-            }
+            .frame(width: 180, alignment: .trailing)
         }
-        .padding()
-        .background(isSelected ? Color.accentColor.opacity(0.1) : Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
-        )
+        .padding(.vertical, 16)
+        .padding(.horizontal, 8)
     }
     
-    private var daysRemaining: Int {
-        Calendar.current.dateComponents([.day], from: Date(), to: listing.deadline).day ?? 0
+    // MARK: - Gamification Logic
+    private func completeListing(success: Bool) {
+        if let index = appState.myListings.firstIndex(where: { $0.id == listing.id }) {
+            withAnimation {
+                var updatedListing = appState.myListings[index]
+                updatedListing.isActive = false
+                
+                if success {
+                    // Success Logic
+                    // 1. Base 10% increase
+                    let baseIncrease = appState.userStockPrice * 0.10
+                    
+                    // 2. Streak Bonus (1% per streak)
+                    let streakBonus = appState.userStockPrice * (0.01 * Double(appState.streak))
+                    
+                    // Update User Price
+                    appState.userStockPrice += (baseIncrease + streakBonus)
+                    
+                    // Update Listing status (Storing reward as positive change)
+                    updatedListing.change = baseIncrease + streakBonus
+                    
+                    // Increase Streak
+                    appState.streak += 1
+                }
+                // Failure is handled by checkDeadlines automatically now
+                
+                appState.myListings[index] = updatedListing
+                
+                // Update History
+                appState.userStockHistory.append(appState.userStockPrice)
+            }
+        }
+    }
+    
+    private func useTimeStop() {
+        guard let count = appState.mySkills["시간 정지"], count > 0 else { return }
+        
+        if let index = appState.myListings.firstIndex(where: { $0.id == listing.id }) {
+            withAnimation {
+                // Consume 1 Ticket
+                appState.mySkills["시간 정지"] = count - 1
+                
+                // Extend deadline by 1 day
+                let newDate = Calendar.current.date(byAdding: .day, value: 1, to: appState.myListings[index].deadline) ?? Date()
+                appState.myListings[index].deadline = newDate
+            }
+        }
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - New Listing Card (Embedded Form)
+struct NewListingCard: View {
+    @EnvironmentObject var appState: AppState
+    
+    @State private var title = ""
+    @State private var date = Date()
+    @State private var difficulty = 1 // Default to Normal (1)
+    @State private var visibility = 0 // 0: Friends Only
+    
+    // Validated Pricing based on Formula
+    var calculatedPrice: Int {
+        let basePrice: Double
+        switch difficulty {
+        case 0: basePrice = 5000  // Easy
+        case 1: basePrice = 10000 // Normal
+        case 2: basePrice = 20000 // Hard
+        default: basePrice = 10000
+        }
+        
+        let multiplier = appState.userStockPrice / 10000.0 // Adjusted base multiplier
+        return Int(basePrice * multiplier)
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            HStack {
+                Image(systemName: "plus")
+                    .foregroundStyle(AppTheme.gain)
+                Text("신규 상장")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(AppTheme.primaryText)
+                
+                Spacer()
+                
+                // Difficulty Info
+                Text("예상 공모가: ₩\(calculatedPrice)")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.gain)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(AppTheme.gain.opacity(0.1))
+                    .cornerRadius(6)
+            }
+            .padding(.bottom, 8)
+            
+            // Form Fields
+            VStack(spacing: 20) {
+                inputGroup(title: "종목명 (할 일)", placeholder: "예: 헬스장 주 3회 가기", text: $title)
+                
+                HStack(spacing: 16) {
+                    // Date Picker
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("마감일")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.secondaryText)
+                        
+                        HStack {
+                            Image(systemName: "calendar")
+                                .foregroundStyle(AppTheme.secondaryText)
+                            DatePicker("", selection: $date, displayedComponents: [.date, .hourAndMinute])
+                                .labelsHidden()
+                                .colorScheme(.dark)
+                        }
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(AppTheme.cardBackgroundLight)
+                        .cornerRadius(8)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(AppTheme.border, lineWidth: 1)
+                        )
+                    }
+                    
+                    // Difficulty
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("난이도")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.secondaryText)
+                        
+                        Menu {
+                            Button("🟢 쉬움 (5,000P)", action: { difficulty = 0 })
+                            Button("🟡 보통 (10,000P)", action: { difficulty = 1 })
+                            Button("🔴 어려움 (20,000P)", action: { difficulty = 2 })
+                        } label: {
+                            HStack {
+                                Text(difficultyLabel)
+                                    .foregroundStyle(difficultyColor)
+                                Spacer()
+                                Image(systemName: "chevron.down")
+                                    .font(.caption)
+                                    .foregroundStyle(AppTheme.secondaryText)
+                            }
+                            .padding(12)
+                            .background(AppTheme.cardBackgroundLight)
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(AppTheme.border, lineWidth: 1)
+                            )
+                        }
+                        .menuStyle(.borderlessButton)
+                    }
+                }
+                
+                // Visibility
+                 VStack(alignment: .leading, spacing: 8) {
+                     Text("공개 범위")
+                         .font(.caption)
+                         .foregroundStyle(AppTheme.secondaryText)
+                     
+                     Menu {
+                         Button("친구만", action: { visibility = 0 })
+                         Button("전체 공개", action: { visibility = 1 })
+                         Button("비공개", action: { visibility = 2 })
+                     } label: {
+                         HStack {
+                             Text(visibilityLabel)
+                                 .foregroundStyle(AppTheme.primaryText)
+                             Spacer()
+                             Image(systemName: "chevron.down")
+                                 .font(.caption)
+                                 .foregroundStyle(AppTheme.secondaryText)
+                         }
+                         .padding(12)
+                         .background(AppTheme.cardBackgroundLight)
+                         .cornerRadius(8)
+                         .overlay(
+                             RoundedRectangle(cornerRadius: 8)
+                                 .stroke(AppTheme.border, lineWidth: 1)
+                         )
+                     }
+                     .menuStyle(.borderlessButton)
+                 }
+            }
+            
+            Button(action: {
+                approveListing()
+            }) {
+                Text("상장 승인")
+                    .font(.headline)
+                    .foregroundStyle(.black)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(title.isEmpty ? Color.gray : AppTheme.gain)
+                    .cornerRadius(8)
+            }
+            .disabled(title.isEmpty)
+            .buttonStyle(PlainButtonStyle())
+        }
+        .padding(24)
+        .cardStyle()
+    }
+    
+    private func approveListing() {
+        let newListing = Listing(
+            id: UUID(),
+            title: title,
+            category: .project, // Default for now
+            initialPrice: Double(calculatedPrice),
+            currentPrice: Double(calculatedPrice),
+            change: 0,
+            progress: 0.0,
+            deadline: date,
+            isActive: true
+        )
+        
+        withAnimation {
+            appState.myListings.insert(newListing, at: 0)
+            // Reset fields
+            title = ""
+            date = Date()
+            difficulty = 1
+        }
+    }
+    
+    private var difficultyLabel: String {
+        switch difficulty {
+        case 0: return "쉬움"
+        case 1: return "보통"
+        case 2: return "어려움"
+        default: return "보통"
+        }
+    }
+    
+    private var difficultyColor: Color {
+        switch difficulty {
+        case 0: return .green
+        case 1: return .yellow
+        case 2: return .red
+        default: return .white
+        }
+    }
+    
+    private var visibilityLabel: String {
+        switch visibility {
+        case 0: return "친구만"
+        case 1: return "전체 공개"
+        case 2: return "비공개"
+        default: return "친구만"
+        }
+    }
+    
+    private func inputGroup(title: String, placeholder: String, text: Binding<String>, icon: String? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(AppTheme.secondaryText)
+            
+            HStack {
+                if let icon = icon {
+                    Image(systemName: icon)
+                        .foregroundStyle(AppTheme.secondaryText)
+                }
+                
+                TextField(placeholder, text: text)
+                    .textFieldStyle(.plain)
+                    .foregroundStyle(AppTheme.primaryText)
+            }
+            .padding(12)
+            .background(AppTheme.cardBackgroundLight)
+            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(AppTheme.border, lineWidth: 1)
+            )
+        }
     }
 }
 
@@ -248,11 +617,12 @@ struct CompletedListingRow: View {
             
             Text(title)
                 .font(.subheadline)
+                .foregroundStyle(AppTheme.primaryText)
                 .strikethrough(result == .failure, color: .secondary)
             
             Spacer()
             
-            Text(result == .success ? "+₩\(reward)" : "₩\(penalty)")
+            Text(result == .success ? "+₩\(reward)" : "-₩\(penalty)")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(result == .success ? AppTheme.gain : AppTheme.loss)
         }
@@ -261,178 +631,8 @@ struct CompletedListingRow: View {
     }
 }
 
-// MARK: - Listing Inspector
-struct ListingInspector: View {
-    let listing: Listing
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Header
-            VStack(alignment: .leading, spacing: 8) {
-                Text(listing.title)
-                    .font(.title3.weight(.semibold))
-                
-                HStack {
-                    Text(listing.category.rawValue)
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(listing.category.color.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                    
-                    Spacer()
-                    
-                    PriceChangeBadge(change: listing.change)
-                }
-            }
-            .padding()
-            
-            Divider()
-            
-            // Stats
-            VStack(spacing: 16) {
-                StatRow(label: "시작가", value: "₩\(Int(listing.initialPrice))")
-                StatRow(label: "현재가", value: "₩\(Int(listing.currentPrice))")
-                StatRow(label: "진행률", value: "\(Int(listing.progress * 100))%")
-                StatRow(label: "마감일", value: formatDate(listing.deadline))
-            }
-            .padding()
-            
-            Divider()
-            
-            // Progress Section
-            VStack(alignment: .leading, spacing: 12) {
-                Text("진행 상황")
-                    .font(.subheadline.weight(.semibold))
-                
-                ProgressView(value: listing.progress)
-                    .tint(listing.category.color)
-                
-                Text("목표까지 \(Int((1 - listing.progress) * 100))% 남음")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .padding()
-            
-            Spacer()
-            
-            // Actions
-            VStack(spacing: 8) {
-                Button(action: {}) {
-                    Label("진행 상황 업데이트", systemImage: "arrow.clockwise")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                
-                Button(action: {}) {
-                    Label("상장 폐지", systemImage: "xmark.circle")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .tint(.red)
-            }
-            .padding()
-        }
-        .background(Color(nsColor: .controlBackgroundColor))
-    }
-    
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy.MM.dd"
-        return formatter.string(from: date)
-    }
-}
-
-struct StatRow: View {
-    let label: String
-    let value: String
-    
-    var body: some View {
-        HStack {
-            Text(label)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text(value)
-                .font(.subheadline.weight(.medium))
-        }
-    }
-}
-
-// MARK: - New Listing Sheet
-struct NewListingSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var title = ""
-    @State private var category: ListingCategory = .project
-    @State private var initialPrice = "10000"
-    @State private var deadline = Date().addingTimeInterval(86400 * 30)
-    @State private var description = ""
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Button("취소") { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                
-                Spacer()
-                
-                Text("새 할일 상장")
-                    .font(.headline)
-                
-                Spacer()
-                
-                Button("상장하기") {
-                    // Create listing
-                    dismiss()
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(title.isEmpty)
-            }
-            .padding()
-            
-            Divider()
-            
-            Form {
-                Section("기본 정보") {
-                    TextField("할일 제목", text: $title)
-                    
-                    Picker("카테고리", selection: $category) {
-                        ForEach(ListingCategory.allCases, id: \.self) { cat in
-                            Label(cat.rawValue, systemImage: cat.icon)
-                                .tag(cat)
-                        }
-                    }
-                    
-                    TextField("공모가 (₩)", text: $initialPrice)
-                    
-                    DatePicker("마감일", selection: $deadline, displayedComponents: .date)
-                }
-                
-                Section("설명") {
-                    TextEditor(text: $description)
-                        .frame(height: 100)
-                }
-                
-                Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("상장 규칙")
-                            .font(.subheadline.weight(.semibold))
-                        
-                        Text("• 할일을 완료하면 주가가 상승합니다\n• 마감일까지 미완료시 주가가 하락합니다\n• 투자자들에게 배당금이 지급됩니다")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .formStyle(.grouped)
-        }
-        .frame(width: 450, height: 500)
-    }
-}
-
 #Preview {
     ListingView()
         .environmentObject(AppState())
-        .frame(width: 900, height: 700)
+        .frame(width: 900, height: 800)
 }

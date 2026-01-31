@@ -196,13 +196,13 @@ struct PortfolioView: View {
             .padding(.top, 16)
 
             VStack(spacing: 4) {
-                ForEach(mockSkills, id: \.name) { skill in
+                ForEach(appState.mySkills.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
                     HStack {
-                        Text(skill.name)
+                        Text(key)
                             .font(.subheadline)
                             .foregroundStyle(AppTheme.primaryText)
                         Spacer()
-                        Text("x\(skill.count)")
+                        Text("x\(value)")
                             .font(.system(.subheadline, weight: .semibold).monospacedDigit())
                             .foregroundStyle(AppTheme.gain)
                     }
@@ -246,23 +246,24 @@ struct PortfolioView: View {
             .padding(.top, 16)
 
             VStack(spacing: 8) {
-                ForEach(mockDelistedItems, id: \.name) { item in
+                // Filter for failed listings (isActive is false AND change is negative)
+                ForEach(appState.myListings.filter { !$0.isActive && $0.change < 0 }, id: \.id) { item in
                     VStack(spacing: 6) {
                         HStack {
-                            Text(item.name)
+                            Text(item.title)
                                 .font(.subheadline.weight(.medium))
                                 .foregroundStyle(AppTheme.primaryText)
                             Spacer()
-                            Text((item.liquidation >= 0 ? "+" : "") + formatPrice(item.liquidation) + "P")
+                            Text(formatPrice(Int(item.change)) + "P")
                                 .font(.system(.subheadline, weight: .medium).monospacedDigit())
-                                .foregroundStyle(item.liquidation >= 0 ? AppTheme.gain : AppTheme.loss)
+                                .foregroundStyle(AppTheme.loss)
                         }
                         HStack {
-                            Text(item.date)
+                            Text(formatDate(item.deadline))
                                 .font(.caption)
                                 .foregroundStyle(AppTheme.tertiaryText)
                             Spacer()
-                            Text(item.status)
+                            Text("상장 폐지")
                                 .font(.caption)
                                 .foregroundStyle(AppTheme.tertiaryText)
                         }
@@ -297,20 +298,14 @@ struct PortfolioView: View {
             Activity(type: .listing, description: "'iOS 앱 출시' 상장 완료", amount: 10000, time: "어제"),
         ]
     }
+    
+    // Using appState.mySkills instead of mockSkills
 
-    private var mockSkills: [(name: String, count: Int)] {
-        [
-            ("도박 취소권", 2),
-            ("할 일 스킵권", 1),
-            ("룰렛 추가 기회권", 3),
-        ]
-    }
 
-    private var mockDelistedItems: [(name: String, liquidation: Int, date: String, status: String)] {
-        [
-            ("프로젝트 A", 2500, "2024-01-15", "청산 완료"),
-            ("학습 목표 B", -500, "2024-01-10", "손실 처리"),
-        ]
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
     }
 }
 
