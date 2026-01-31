@@ -1,14 +1,5 @@
 import SwiftUI
 
-// MARK: - AppTheme
-enum AppTheme {
-    static let gain: Color = .green
-    static let loss: Color = .red
-    static let neon: Color = .purple
-    static let casino: Color = .pink
-    static let primaryText: Color = .primary
-}
-
 // MARK: - Holding
 struct Holding: Identifiable, Hashable {
     let id: UUID

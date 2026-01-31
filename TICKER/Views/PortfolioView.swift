@@ -2,196 +2,178 @@ import SwiftUI
 
 struct PortfolioView: View {
     @EnvironmentObject var appState: AppState
-    @State private var selectedTimeRange: TimeRange = .week
-    
+    @State private var balanceHidden = false
+    @State private var visibility: PortfolioVisibility = .friends
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
                 // Header
-                headerSection
-                
-                // Stats Grid
-                statsGrid
-                
-                // Main Chart
-                mainChartSection
-                
-                // Holdings Overview
-                holdingsSection
-                
-                // Recent Activity
-                activitySection
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("포트폴리오")
+                            .font(.title.weight(.bold))
+                        Text("내 계정 현황")
+                            .font(.subheadline)
+                            .foregroundStyle(AppTheme.secondaryText)
+                    }
+
+                    Spacer()
+
+                    Menu {
+                        Button { visibility = .publicVisible } label: { Label("공개", systemImage: "globe") }
+                        Button { visibility = .friends } label: { Label("친구만", systemImage: "person.2") }
+                        Button { visibility = .privateOnly } label: { Label("비공개", systemImage: "lock") }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: visibility.icon)
+                            Text(visibility.label)
+                        }
+                        .font(.subheadline)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(AppTheme.cardBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(AppTheme.border, lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                // Balance Card
+                balanceCard
+
+                // 2-column layout
+                HStack(alignment: .top, spacing: 20) {
+                    // Left Column
+                    VStack(spacing: 24) {
+                        investedStocksSection
+                        activitySection
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    // Right Column
+                    VStack(spacing: 20) {
+                        skillsSection
+                        delistedSection
+                    }
+                    .frame(width: 300)
+                }
             }
             .padding(24)
         }
-        .navigationTitle("포트폴리오")
-        .toolbar {
-            ToolbarItem(placement: .automatic) {
-                Button(action: {}) {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .help("새로고침")
-            }
-            
-            ToolbarItem(placement: .automatic) {
-                Button(action: {}) {
-                    Image(systemName: "square.and.arrow.up")
-                }
-                .help("공유")
-            }
-        }
+        .background(AppTheme.background)
     }
-    
-    // MARK: - Header Section
-    private var headerSection: some View {
+
+    // MARK: - Balance Card
+    private var balanceCard: some View {
         HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 8) {
+            // Left: total balance
+            VStack(alignment: .leading, spacing: 10) {
                 Text("총 자산")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text(formatCurrency(appState.totalAssets))
-                        .font(.system(size: 36, weight: .bold, design: .rounded))
-                    
-                    PriceChangeBadge(change: appState.dailyChange)
-                }
-                
-                Text("어제 대비 \(appState.dailyChange >= 0 ? "+" : "")\(formatCurrency(appState.totalAssets * appState.dailyChange / 100))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            
-            Spacer()
-            
-            // Time Range Picker
-            Picker("기간", selection: $selectedTimeRange) {
-                ForEach(TimeRange.allCases) { range in
-                    Text(range.rawValue).tag(range)
-                }
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 250)
-        }
-    }
-    
-    // MARK: - Stats Grid
-    private var statsGrid: some View {
-        LazyVGrid(columns: [
-            GridItem(.flexible()),
-            GridItem(.flexible()),
-            GridItem(.flexible()),
-            GridItem(.flexible())
-        ], spacing: 16) {
-            StatCard(
-                title: "투자 중인 친구",
-                value: "\(appState.holdings.count)명",
-                subtitle: "전체 수익률 +12.4%",
-                icon: "person.2.fill",
-                iconColor: .blue
-            )
-            
-            StatCard(
-                title: "내 상장 종목",
-                value: "\(appState.myListings.count)개",
-                subtitle: "진행 중",
-                icon: "list.bullet.clipboard.fill",
-                iconColor: .green
-            )
-            
-            StatCard(
-                title: "보유 스킬",
-                value: "7개",
-                subtitle: "레어 2개 보유",
-                icon: "star.fill",
-                iconColor: .orange
-            )
-            
-            StatCard(
-                title: "신뢰도",
-                value: "92점",
-                subtitle: "상위 8%",
-                icon: "shield.checkered",
-                iconColor: .purple
-            )
-        }
-    }
-    
-    // MARK: - Main Chart Section
-    private var mainChartSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("자산 추이")
-                    .font(.headline)
-                
-                Spacer()
-                
-                Menu {
-                    Button("전체 자산") {}
-                    Button("투자 수익") {}
-                    Button("내 주가") {}
-                } label: {
-                    HStack(spacing: 4) {
-                        Text("전체 자산")
-                            .font(.subheadline)
-                        Image(systemName: "chevron.down")
-                            .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText)
+
+                HStack(alignment: .center, spacing: 12) {
+                    Text(balanceHidden ? "******" : formatPrice(Int(appState.totalAssets)) + "P")
+                        .font(.system(size: 38, weight: .bold).monospacedDigit())
+                        .foregroundStyle(AppTheme.primaryText)
+
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            balanceHidden.toggle()
+                        }
+                    } label: {
+                        Image(systemName: balanceHidden ? "eye.slash" : "eye")
+                            .font(.title3)
+                            .foregroundStyle(AppTheme.secondaryText)
                     }
-                    .foregroundStyle(.secondary)
+                    .buttonStyle(.plain)
                 }
-                .menuStyle(.borderlessButton)
+
+                HStack(spacing: 8) {
+                    PriceChangeBadge(change: appState.dailyChange)
+                    Text("오늘")
+                        .font(.subheadline)
+                        .foregroundStyle(AppTheme.secondaryText)
+                }
             }
-            
-            // Chart Area
-            SparklineView(
-                data: generateChartData(),
-                showGradient: true
-            )
-            .frame(height: 200)
-            .padding()
-            .cardStyle()
+
+            Spacer()
+
+            // Right: invested + cash
+            VStack(alignment: .trailing, spacing: 16) {
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("투자 중")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.secondaryText)
+                    Text(formatPrice(totalInvested) + "P")
+                        .font(.title3.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(AppTheme.primaryText)
+                }
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("보유 현금")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.secondaryText)
+                    Text(formatPrice(Int(appState.totalAssets) - totalInvested) + "P")
+                        .font(.title3.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(AppTheme.primaryText)
+                }
+            }
         }
+        .padding(24)
+        .cardStyle()
     }
-    
-    // MARK: - Holdings Section
-    private var holdingsSection: some View {
+
+    // MARK: - Invested Stocks Section
+    private var investedStocksSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("투자 중인 친구")
-                    .font(.headline)
-                
-                Spacer()
-                
-                Button("전체 보기") {
-                    appState.selectedTab = .holdings
+                HStack(spacing: 8) {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .foregroundStyle(AppTheme.gain)
+                    Text("투자 중인 종목")
+                        .font(.headline)
+                        .foregroundStyle(AppTheme.primaryText)
                 }
-                .buttonStyle(.link)
+
+                Spacer()
+
+                Text("\(appState.holdings.count)개")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.secondaryText)
             }
-            
-            LazyVGrid(columns: [
-                GridItem(.flexible()),
-                GridItem(.flexible()),
-                GridItem(.flexible())
-            ], spacing: 12) {
-                ForEach(appState.holdings.prefix(3)) { holding in
-                    HoldingCard(holding: holding)
+
+            VStack(spacing: 10) {
+                ForEach(appState.holdings) { holding in
+                    StockCardView(
+                        name: holding.name,
+                        price: Int(holding.currentPrice),
+                        change: holding.change,
+                        sparklineData: holding.sparklineData
+                    )
                 }
             }
         }
     }
-    
+
     // MARK: - Activity Section
     private var activitySection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("최근 활동")
                 .font(.headline)
-            
+                .foregroundStyle(AppTheme.primaryText)
+
             VStack(spacing: 0) {
                 ForEach(recentActivities) { activity in
                     ActivityRow(activity: activity)
-                    
+
                     if activity.id != recentActivities.last?.id {
                         Divider()
+                            .background(AppTheme.border)
                             .padding(.leading, 44)
                     }
                 }
@@ -199,24 +181,114 @@ struct PortfolioView: View {
             .cardStyle()
         }
     }
-    
+
+    // MARK: - Skills Section
+    private var skillsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(AppTheme.neon)
+                Text("보유 스킬")
+                    .font(.headline)
+                    .foregroundStyle(AppTheme.primaryText)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+
+            VStack(spacing: 4) {
+                ForEach(mockSkills, id: \.name) { skill in
+                    HStack {
+                        Text(skill.name)
+                            .font(.subheadline)
+                            .foregroundStyle(AppTheme.primaryText)
+                        Spacer()
+                        Text("x\(skill.count)")
+                            .font(.system(.subheadline, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(AppTheme.gain)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(AppTheme.cardBackgroundLight)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .padding(.horizontal, 12)
+                }
+            }
+
+            Button {
+                appState.selectedTab = .store
+            } label: {
+                Text("암시장에서 더 보기")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.primaryText)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(AppTheme.cardBackgroundLight)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 16)
+        }
+        .cardStyle()
+    }
+
+    // MARK: - Delisted Section
+    private var delistedSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundStyle(AppTheme.loss)
+                Text("상장 폐지 내역")
+                    .font(.headline)
+                    .foregroundStyle(AppTheme.primaryText)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+
+            VStack(spacing: 8) {
+                ForEach(mockDelistedItems, id: \.name) { item in
+                    VStack(spacing: 6) {
+                        HStack {
+                            Text(item.name)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(AppTheme.primaryText)
+                            Spacer()
+                            Text((item.liquidation >= 0 ? "+" : "") + formatPrice(item.liquidation) + "P")
+                                .font(.system(.subheadline, weight: .medium).monospacedDigit())
+                                .foregroundStyle(item.liquidation >= 0 ? AppTheme.gain : AppTheme.loss)
+                        }
+                        HStack {
+                            Text(item.date)
+                                .font(.caption)
+                                .foregroundStyle(AppTheme.tertiaryText)
+                            Spacer()
+                            Text(item.status)
+                                .font(.caption)
+                                .foregroundStyle(AppTheme.tertiaryText)
+                        }
+                    }
+                    .padding(12)
+                    .background(AppTheme.cardBackgroundLight)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .padding(.horizontal, 12)
+                }
+            }
+            .padding(.bottom, 16)
+        }
+        .cardStyle()
+    }
+
     // MARK: - Helpers
-    private func formatCurrency(_ value: Double) -> String {
+    private var totalInvested: Int {
+        appState.holdings.reduce(0) { $0 + Int($1.currentPrice) * $1.quantity }
+    }
+
+    private func formatPrice(_ value: Int) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
-        formatter.maximumFractionDigits = 0
-        return "₩" + (formatter.string(from: NSNumber(value: value)) ?? "0")
+        return formatter.string(from: NSNumber(value: value)) ?? "0"
     }
-    
-    private func generateChartData() -> [Double] {
-        var data: [Double] = [100]
-        for _ in 1..<30 {
-            let change = Double.random(in: -3...4)
-            data.append(data.last! + change)
-        }
-        return data
-    }
-    
+
     private var recentActivities: [Activity] {
         [
             Activity(type: .buy, description: "김철수(CHUL) 5주 매수", amount: 76000, time: "10분 전"),
@@ -225,66 +297,41 @@ struct PortfolioView: View {
             Activity(type: .listing, description: "'iOS 앱 출시' 상장 완료", amount: 10000, time: "어제"),
         ]
     }
+
+    private var mockSkills: [(name: String, count: Int)] {
+        [
+            ("도박 취소권", 2),
+            ("할 일 스킵권", 1),
+            ("룰렛 추가 기회권", 3),
+        ]
+    }
+
+    private var mockDelistedItems: [(name: String, liquidation: Int, date: String, status: String)] {
+        [
+            ("프로젝트 A", 2500, "2024-01-15", "청산 완료"),
+            ("학습 목표 B", -500, "2024-01-10", "손실 처리"),
+        ]
+    }
 }
 
-// MARK: - Time Range
-enum TimeRange: String, CaseIterable, Identifiable {
-    case day = "1일"
-    case week = "1주"
-    case month = "1개월"
-    case quarter = "3개월"
-    case year = "1년"
-    
-    var id: String { rawValue }
-}
+// MARK: - Portfolio Visibility
+enum PortfolioVisibility {
+    case publicVisible, friends, privateOnly
 
-// MARK: - Holding Card
-struct HoldingCard: View {
-    let holding: Holding
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                AvatarView(name: holding.name, color: holding.avatarColor, size: 36)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(holding.name)
-                        .font(.subheadline.weight(.semibold))
-                    Text(holding.ticker)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                
-                Spacer()
-                
-                PriceChangeBadge(change: holding.change)
-            }
-            
-            SparklineView(data: holding.sparklineData)
-                .frame(height: 40)
-            
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("현재가")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Text("₩\(Int(holding.currentPrice))")
-                        .font(.subheadline.weight(.semibold))
-                }
-                
-                Spacer()
-                
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("보유")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Text("\(holding.quantity)주")
-                        .font(.subheadline.weight(.semibold))
-                }
-            }
+    var label: String {
+        switch self {
+        case .publicVisible: return "공개"
+        case .friends: return "친구만"
+        case .privateOnly: return "비공개"
         }
-        .padding()
-        .cardStyle()
+    }
+
+    var icon: String {
+        switch self {
+        case .publicVisible: return "globe"
+        case .friends: return "person.2"
+        case .privateOnly: return "lock"
+        }
     }
 }
 
@@ -299,7 +346,7 @@ struct Activity: Identifiable {
 
 enum ActivityType {
     case buy, sell, dividend, listing
-    
+
     var icon: String {
         switch self {
         case .buy: return "arrow.down.circle.fill"
@@ -308,7 +355,7 @@ enum ActivityType {
         case .listing: return "plus.circle.fill"
         }
     }
-    
+
     var color: Color {
         switch self {
         case .buy: return .blue
@@ -321,34 +368,41 @@ enum ActivityType {
 
 struct ActivityRow: View {
     let activity: Activity
-    
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: activity.type.icon)
                 .font(.title2)
                 .foregroundStyle(activity.type.color)
                 .frame(width: 32)
-            
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(activity.description)
                     .font(.subheadline)
+                    .foregroundStyle(AppTheme.primaryText)
                 Text(activity.time)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppTheme.tertiaryText)
             }
-            
+
             Spacer()
-            
-            Text((activity.type == .sell ? "+" : "-") + "₩\(activity.amount)")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(activity.type == .sell || activity.type == .dividend ? AppTheme.gain : AppTheme.primaryText)
+
+            Text((activity.type == .sell || activity.type == .dividend ? "+" : "-") + "₩\(activity.amount)")
+                .font(.system(.subheadline, weight: .medium).monospacedDigit())
+                .foregroundStyle(
+                    activity.type == .sell || activity.type == .dividend
+                        ? AppTheme.gain
+                        : AppTheme.primaryText
+                )
         }
-        .padding()
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 }
 
 #Preview {
     PortfolioView()
         .environmentObject(AppState())
-        .frame(width: 800, height: 900)
+        .frame(width: 900, height: 800)
+        .preferredColorScheme(.dark)
 }

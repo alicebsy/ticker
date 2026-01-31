@@ -3,9 +3,9 @@ import SwiftUI
 /// StockCardView: 친구/종목 한 줄 카드 (macOS 리스트/사이드바/메인에서 재사용)
 struct StockCardView: View {
     let name: String
-    var avatar: NSImage? = nil          // macOS라 NSImage 추천 (나중에 URL로 바꿔도 됨)
-    let price: Int                      // e.g. 912000
-    let change: Double                  // e.g. +5.92 (%)
+    var avatar: NSImage? = nil
+    let price: Int
+    let change: Double
     let sparklineData: [Double]
 
     var onClick: (() -> Void)? = nil
@@ -13,93 +13,70 @@ struct StockCardView: View {
     @State private var isHovering = false
 
     private var initials: String {
-        // TS: name.slice(0,2).toUpperCase()
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let prefix2 = String(trimmed.prefix(2))
-        return prefix2.uppercased()
+        return String(trimmed.prefix(2)).uppercased()
     }
 
     var body: some View {
         Button(action: { onClick?() }) {
             HStack(spacing: 14) {
                 // Avatar
-                AvatarView(image: avatar, fallbackText: initials)
-                    .frame(width: 40, height: 40)
+                ZStack {
+                    if let img = avatar {
+                        Image(nsImage: img)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Circle()
+                            .fill(AppTheme.cardBackgroundLight)
+                        Text(initials)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(AppTheme.secondaryText)
+                    }
+                }
+                .frame(width: 42, height: 42)
+                .clipShape(Circle())
 
                 // Name + Price
                 VStack(alignment: .leading, spacing: 4) {
                     Text(name)
                         .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(AppTheme.primaryText)
                         .lineLimit(1)
                         .truncationMode(.tail)
-
                     Text("\(price.formatted(.number))P")
-                        .font(.system(size: 18, weight: .bold))
+                        .font(.system(size: 18, weight: .bold).monospacedDigit())
+                        .foregroundStyle(AppTheme.primaryText)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 // Right: sparkline + badge
                 VStack(alignment: .trailing, spacing: 8) {
-                    SparklineView(data: sparklineData)
+                    SparklineView(data: sparklineData, showGradient: false)
                         .frame(width: 60, height: 20)
-
-                    PriceBadgeView(value: change, percentage: true, showIcon: true, size: .sm)
+                    PriceChangeBadge(change: change)
                 }
             }
             .padding(14)
-            .background(cardBackground)
-            .overlay(cardBorder)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(AppTheme.cardBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(
+                        isHovering ? Color.accentColor.opacity(0.35) : AppTheme.border,
+                        lineWidth: 1
+                    )
+            )
             .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
-        .buttonStyle(.plain) // macOS: 버튼 기본 스타일 제거
+        .buttonStyle(.plain)
         .onHover { hovering in
-            isHovering = hovering
-        }
-    }
-
-    // MARK: - Styles
-
-    private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .fill(Color(NSColor.windowBackgroundColor).opacity(0.6))
-    }
-
-    private var cardBorder: some View {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .stroke(borderColor, lineWidth: 1)
-    }
-
-    private var borderColor: Color {
-        // TS: hover:border-primary/30 느낌
-        if isHovering {
-            return Color.accentColor.opacity(0.35)
-        } else {
-            return Color(NSColor.separatorColor).opacity(0.8)
-        }
-    }
-}
-
-// MARK: - AvatarView (간단 버전)
-private struct AvatarView: View {
-    let image: NSImage?
-    let fallbackText: String
-
-    var body: some View {
-        ZStack {
-            if let image {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color(NSColor.controlBackgroundColor).opacity(0.8))
-
-                Text(fallbackText)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovering = hovering
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 
@@ -111,7 +88,6 @@ private struct AvatarView: View {
             change: 5.92,
             sparklineData: [1, 1.2, 1.1, 1.3, 1.8, 1.7, 2.0]
         )
-
         StockCardView(
             name: "휴림로봇",
             price: 14_810,
@@ -121,4 +97,6 @@ private struct AvatarView: View {
     }
     .padding()
     .frame(width: 420)
+    .background(AppTheme.background)
+    .preferredColorScheme(.dark)
 }
