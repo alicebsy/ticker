@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 // MARK: - App Theme
 struct AppTheme {
@@ -8,17 +9,70 @@ struct AppTheme {
     static let neon = Color(red: 0.2, green: 1.0, blue: 0.6)
     static let casino = Color(red: 1.0, green: 0.4, blue: 0.8)
 
-    // Dark Background Colors (고정 다크 테마)
-    static let background = Color(red: 0.07, green: 0.07, blue: 0.08)        // #121214 — 메인 배경
-    static let cardBackground = Color(red: 0.11, green: 0.11, blue: 0.13)    // #1C1C21 — 카드 배경
-    static let cardBackgroundLight = Color(red: 0.15, green: 0.15, blue: 0.17) // #262628 — 카드 내부 행
-    static let sidebarBackground = Color(red: 0.09, green: 0.09, blue: 0.10) // #171719 — 사이드바
-    static let border = Color.white.opacity(0.08)                             // 카드 테두리
+    // Dynamic Colors Helpers
+    private static func dynamicColor(dark: NSColor, light: NSColor) -> Color {
+        return Color(nsColor: NSColor(name: nil, dynamicProvider: { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
+        }))
+    }
 
-    // Text Colors (다크 테마 고정)
-    static let primaryText = Color.white
-    static let secondaryText = Color.white.opacity(0.55)
-    static let tertiaryText = Color.white.opacity(0.35)
+    // Background Colors
+    static var background: Color {
+        dynamicColor(
+            dark: NSColor(red: 0.07, green: 0.07, blue: 0.08, alpha: 1.0),      // #121214
+            light: NSColor(red: 0.96, green: 0.96, blue: 0.97, alpha: 1.0)      // #F5F5F7
+        )
+    }
+    
+    static var cardBackground: Color {
+        dynamicColor(
+            dark: NSColor(red: 0.11, green: 0.11, blue: 0.13, alpha: 1.0),      // #1C1C21
+            light: NSColor(white: 1.0, alpha: 1.0)                              // #FFFFFF
+        )
+    }
+    
+    static var cardBackgroundLight: Color {
+        dynamicColor(
+            dark: NSColor(red: 0.15, green: 0.15, blue: 0.17, alpha: 1.0),      // #262628
+            light: NSColor(red: 0.94, green: 0.94, blue: 0.96, alpha: 1.0)      // #F0F0F5
+        )
+    }
+    
+    static var sidebarBackground: Color {
+        dynamicColor(
+            dark: NSColor(red: 0.09, green: 0.09, blue: 0.10, alpha: 1.0),      // #171719
+            light: NSColor(red: 0.95, green: 0.95, blue: 0.97, alpha: 1.0)      // #F2F2F7
+        )
+    }
+    
+    static var border: Color {
+        dynamicColor(
+            dark: NSColor(white: 1.0, alpha: 0.08),
+            light: NSColor(white: 0.0, alpha: 0.08)
+        )
+    }
+
+    // Text Colors
+    static var primaryText: Color {
+        dynamicColor(
+            dark: NSColor.white,
+            light: NSColor.black
+        )
+    }
+    
+    static var secondaryText: Color {
+        dynamicColor(
+            dark: NSColor.white.withAlphaComponent(0.55),
+            light: NSColor.black.withAlphaComponent(0.55)
+        )
+    }
+    
+    static var tertiaryText: Color {
+        dynamicColor(
+            dark: NSColor.white.withAlphaComponent(0.35),
+            light: NSColor.black.withAlphaComponent(0.35)
+        )
+    }
 }
 
 // MARK: - Custom View Modifiers

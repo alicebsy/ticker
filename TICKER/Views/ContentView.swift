@@ -3,12 +3,16 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    
+    // 테마 설정을 저장 (기본값 다크모드)
+    @AppStorage("isDarkMode") private var isDarkMode = true
 
     var body: some View {
         Group {
             if appState.isLoggedIn {
                 NavigationSplitView(columnVisibility: $columnVisibility) {
-                    SidebarView()
+                    // SidebarView에 테마 상태를 바인딩으로 전달
+                    SidebarView(isDarkMode: $isDarkMode)
                         .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
                 } detail: {
                     DetailView()
@@ -19,13 +23,15 @@ struct ContentView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: appState.isLoggedIn)
-        .preferredColorScheme(.dark)
+        // 사용자의 선택에 따라 다크/라이트 모드 적용
+        .preferredColorScheme(isDarkMode ? .dark : .light)
     }
 }
 
 // MARK: - Sidebar View
 struct SidebarView: View {
     @EnvironmentObject var appState: AppState
+    @Binding var isDarkMode: Bool // ContentView와 동기화되는 변수
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,7 +45,7 @@ struct SidebarView: View {
                     HStack {
                         Image(systemName: "chart.line.uptrend.xyaxis")
                             .foregroundStyle(.green)
-                        Text("인간 주식 시장")
+                        Text("TICKER")
                             .font(.headline)
                     }
                     .padding(.bottom, 8)
@@ -68,7 +74,7 @@ struct SidebarView: View {
 
             Divider()
 
-            // 하단 영역: 유저 정보 + 라이트모드 텍스트
+            // 하단 영역: 유저 정보 + 모드 전환 버튼
             VStack(spacing: 12) {
                 if let user = appState.currentUser {
                     HStack(spacing: 10) {
@@ -107,21 +113,32 @@ struct SidebarView: View {
                     Divider()
                 }
 
-                HStack {
-                    Image(systemName: "moon.fill")
-                        .foregroundStyle(.yellow)
-                        .font(.system(size: 14))
+                // 모드 전환 버튼 영역
+                Button(action: {
+                    withAnimation {
+                        isDarkMode.toggle()
+                    }
+                }) {
+                    HStack {
+                        Image(systemName: isDarkMode ? "moon.fill" : "sun.max.fill")
+                            .foregroundStyle(isDarkMode ? .yellow : .orange)
+                            .font(.system(size: 14))
 
-                    Text("라이트 모드")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.secondaryText)
+                        Text(isDarkMode ? "라이트 모드" : "다크 모드")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.secondaryText)
 
-                    Spacer()
+                        Spacer()
 
-                    Image(systemName: "sun.max.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(AppTheme.tertiaryText)
+                        Text(isDarkMode ? "Dark" : "Light")
+                            .font(.system(size: 10, weight: .bold))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.gray.opacity(0.2))
+                            .cornerRadius(4)
+                    }
                 }
+                .buttonStyle(.plain)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -138,7 +155,7 @@ struct SidebarView: View {
     }
 }
 
-// MARK: - Sidebar Item
+// MARK: - Sidebar Item (기존 코드와 동일)
 struct SidebarItem: View {
     let tab: SidebarTab
 
@@ -152,7 +169,7 @@ struct SidebarItem: View {
     }
 }
 
-// MARK: - Detail View (Tab Router)
+// MARK: - Detail View (기존 코드와 동일)
 struct DetailView: View {
     @EnvironmentObject var appState: AppState
 
@@ -178,7 +195,7 @@ struct DetailView: View {
     }
 }
 
-// MARK: - Settings View
+// MARK: - Settings View (기존 코드와 동일)
 struct SettingsView: View {
     var body: some View {
         TabView {

@@ -58,7 +58,7 @@ struct LoginView: View {
                     }
                     
                     VStack(spacing: 8) {
-                        Text("인간 주식 시장")
+                        Text("TICKER")
                             .font(.system(size: 32, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                         
