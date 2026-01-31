@@ -77,6 +77,21 @@ struct Holding: Identifiable, Hashable {
     ]
 }
 
+// MARK: - FriendListing (a friend's active todo/listing you can invest in)
+struct FriendListing: Identifiable, Hashable {
+    let id: UUID
+    var title: String
+    var progress: Double // 0.0 ~ 1.0
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+
+    static func == (lhs: FriendListing, rhs: FriendListing) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
 // MARK: - Friend
 struct Friend: Identifiable, Hashable {
     let id: UUID
@@ -89,6 +104,7 @@ struct Friend: Identifiable, Hashable {
     var sparklineData: [Double]
     var skills: [String]
     var trustScore: Int
+    var listings: [FriendListing]
 
     var isPositive: Bool { change >= 0 }
 
@@ -111,7 +127,11 @@ struct Friend: Identifiable, Hashable {
             avatarColor: .blue,
             sparklineData: [100, 105, 103, 108, 112, 110, 115, 118, 120, 122],
             skills: ["Swift", "React", "Python"],
-            trustScore: 95
+            trustScore: 95,
+            listings: [
+                FriendListing(id: UUID(), title: "운동 루틴", progress: 0.80),
+                FriendListing(id: UUID(), title: "독서 목표", progress: 0.45),
+            ]
         ),
         Friend(
             id: UUID(),
@@ -123,7 +143,10 @@ struct Friend: Identifiable, Hashable {
             avatarColor: .pink,
             sparklineData: [100, 98, 102, 97, 95, 93, 96, 94, 92, 90],
             skills: ["Figma", "UI/UX", "CSS"],
-            trustScore: 88
+            trustScore: 88,
+            listings: [
+                FriendListing(id: UUID(), title: "포트폴리오 리뉴얼", progress: 0.30),
+            ]
         ),
         Friend(
             id: UUID(),
@@ -135,7 +158,11 @@ struct Friend: Identifiable, Hashable {
             avatarColor: .orange,
             sparklineData: [100, 103, 107, 110, 108, 115, 120, 125, 128, 130],
             skills: ["ML", "PyTorch", "논문"],
-            trustScore: 92
+            trustScore: 92,
+            listings: [
+                FriendListing(id: UUID(), title: "논문 작성", progress: 0.65),
+                FriendListing(id: UUID(), title: "캐글 대회 참가", progress: 0.20),
+            ]
         ),
         Friend(
             id: UUID(),
@@ -147,7 +174,10 @@ struct Friend: Identifiable, Hashable {
             avatarColor: .green,
             sparklineData: [100, 101, 99, 102, 100, 103, 101, 104, 102, 103],
             skills: ["AWS", "Docker", "Go"],
-            trustScore: 90
+            trustScore: 90,
+            listings: [
+                FriendListing(id: UUID(), title: "AWS 자격증 취득", progress: 0.55),
+            ]
         ),
         Friend(
             id: UUID(),
@@ -159,7 +189,12 @@ struct Friend: Identifiable, Hashable {
             avatarColor: .purple,
             sparklineData: [110, 108, 112, 107, 105, 103, 108, 106, 104, 102],
             skills: ["경영", "마케팅", "투자"],
-            trustScore: 85
+            trustScore: 85,
+            listings: [
+                FriendListing(id: UUID(), title: "투자 유치", progress: 0.40),
+                FriendListing(id: UUID(), title: "MVP 출시", progress: 0.70),
+                FriendListing(id: UUID(), title: "팀 빌딩", progress: 0.90),
+            ]
         ),
     ]
 }
