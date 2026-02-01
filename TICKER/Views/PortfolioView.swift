@@ -58,6 +58,7 @@ struct PortfolioView: View {
                     VStack(spacing: 20) {
                         skillsSection
                         delistedSection
+                        newsPreviewSection
                     }
                     .frame(width: 300)
                 }
@@ -274,6 +275,94 @@ struct PortfolioView: View {
                     .padding(.horizontal, 12)
                 }
             }
+            .padding(.bottom, 16)
+        }
+        .cardStyle()
+    }
+
+    // MARK: - News Preview Section
+    private var newsPreviewSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "newspaper.fill")
+                    .foregroundStyle(.cyan)
+                Text("최신 뉴스")
+                    .font(.headline)
+                    .foregroundStyle(AppTheme.primaryText)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+
+            VStack(spacing: 4) {
+                ForEach(appState.newsPosts.prefix(3)) { post in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            HStack(spacing: 3) {
+                                Image(systemName: post.category.icon)
+                                    .font(.system(size: 8))
+                                Text(post.category.rawValue)
+                                    .font(.system(size: 10, weight: .medium))
+                            }
+                            .foregroundStyle(post.category.color)
+
+                            Spacer()
+
+                            Text(post.timeAgo)
+                                .font(.system(size: 10))
+                                .foregroundStyle(AppTheme.tertiaryText)
+                        }
+
+                        Text(post.title)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(AppTheme.primaryText)
+                            .lineLimit(1)
+
+                        HStack {
+                            Text(post.displayAuthor)
+                                .font(.caption)
+                                .foregroundStyle(AppTheme.tertiaryText)
+                            Spacer()
+                            HStack(spacing: 8) {
+                                HStack(spacing: 2) {
+                                    Image(systemName: "heart.fill")
+                                        .font(.system(size: 8))
+                                        .foregroundStyle(.pink.opacity(0.7))
+                                    Text("\(post.likes)")
+                                        .font(.caption2)
+                                        .foregroundStyle(AppTheme.tertiaryText)
+                                }
+                                HStack(spacing: 2) {
+                                    Image(systemName: "bubble.right.fill")
+                                        .font(.system(size: 8))
+                                        .foregroundStyle(.cyan.opacity(0.7))
+                                    Text("\(post.comments.count)")
+                                        .font(.caption2)
+                                        .foregroundStyle(AppTheme.tertiaryText)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(AppTheme.cardBackgroundLight)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .padding(.horizontal, 12)
+                }
+            }
+
+            Button {
+                appState.selectedTab = .news
+            } label: {
+                Text("뉴스 더 보기")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.primaryText)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(AppTheme.cardBackgroundLight)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
             .padding(.bottom, 16)
         }
         .cardStyle()

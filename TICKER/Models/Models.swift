@@ -322,6 +322,166 @@ struct StoreItem: Identifiable {
     ]
 }
 
+// MARK: - NewsPost
+struct NewsPost: Identifiable, Hashable {
+    let id: UUID
+    var author: String
+    var authorTicker: String
+    var avatarColor: Color
+    var title: String
+    var content: String
+    var category: NewsCategory
+    var likes: Int
+    var comments: [NewsComment]
+    var timestamp: Date
+    var isAnonymous: Bool
+
+    var displayAuthor: String {
+        isAnonymous ? "익명" : author
+    }
+
+    var timeAgo: String {
+        let interval = Date().timeIntervalSince(timestamp)
+        if interval < 60 { return "방금 전" }
+        if interval < 3600 { return "\(Int(interval / 60))분 전" }
+        if interval < 86400 { return "\(Int(interval / 3600))시간 전" }
+        return "\(Int(interval / 86400))일 전"
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+
+    static func == (lhs: NewsPost, rhs: NewsPost) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    static let sampleData: [NewsPost] = [
+        NewsPost(
+            id: UUID(),
+            author: "박지민",
+            authorTicker: "JIMIN",
+            avatarColor: .orange,
+            title: "요즘 AI 관련 상장 많이 하시나요?",
+            content: "AI 프로젝트 상장이 요즘 대세인 것 같은데, 다들 어떤 카테고리로 상장하고 계신가요? 저는 논문 작성 위주로 하고 있는데 수익률이 괜찮네요.",
+            category: .discussion,
+            likes: 12,
+            comments: [
+                NewsComment(id: UUID(), author: "김철수", content: "저도 AI 쪽 상장 준비 중이에요!", timestamp: Date().addingTimeInterval(-1800)),
+                NewsComment(id: UUID(), author: "최수진", content: "프로젝트 카테고리가 수익률이 제일 높은 것 같아요", timestamp: Date().addingTimeInterval(-900)),
+            ],
+            timestamp: Date().addingTimeInterval(-600),
+            isAnonymous: false
+        ),
+        NewsPost(
+            id: UUID(),
+            author: "김철수",
+            authorTicker: "CHUL",
+            avatarColor: .blue,
+            title: "정민호 주가 왜 이렇게 떨어지나요?",
+            content: "정민호 주식 보유하고 있는데 계속 하락 중이네요. 투자 유치 상장 진행 상황 아시는 분?",
+            category: .analysis,
+            likes: 8,
+            comments: [
+                NewsComment(id: UUID(), author: "익명", content: "마감일이 가까운데 진행률이 낮아서 그런 듯", timestamp: Date().addingTimeInterval(-3000)),
+            ],
+            timestamp: Date().addingTimeInterval(-3600),
+            isAnonymous: false
+        ),
+        NewsPost(
+            id: UUID(),
+            author: "최수진",
+            authorTicker: "SUJIN",
+            avatarColor: .green,
+            title: "암시장에서 시간 정지 스킬 살 가치가 있나요?",
+            content: "50000P나 하는데... 마감일 연장이 그 정도 가치가 있을까요? 사보신 분 후기 부탁드립니다.",
+            category: .tip,
+            likes: 15,
+            comments: [
+                NewsComment(id: UUID(), author: "박지민", content: "마감 직전에 쓰면 인생템이에요", timestamp: Date().addingTimeInterval(-5400)),
+                NewsComment(id: UUID(), author: "정민호", content: "차라리 더블 부스트가 가성비 좋아요", timestamp: Date().addingTimeInterval(-4800)),
+                NewsComment(id: UUID(), author: "이영희", content: "저는 3개 비축해놨어요 ㅋㅋ", timestamp: Date().addingTimeInterval(-4200)),
+            ],
+            timestamp: Date().addingTimeInterval(-7200),
+            isAnonymous: false
+        ),
+        NewsPost(
+            id: UUID(),
+            author: "이영희",
+            authorTicker: "YOUNG",
+            avatarColor: .pink,
+            title: "카지노에서 30만P 날렸습니다...",
+            content: "룰렛에서 연속으로 잃었네요 ㅠㅠ 카지노 하지 마세요 진심으로... 도박 취소권 없었으면 더 잃을 뻔",
+            category: .free,
+            likes: 23,
+            comments: [
+                NewsComment(id: UUID(), author: "김철수", content: "ㅋㅋㅋㅋ 저도요...", timestamp: Date().addingTimeInterval(-10800)),
+                NewsComment(id: UUID(), author: "익명", content: "카지노는 집이 항상 이기는 법", timestamp: Date().addingTimeInterval(-9000)),
+            ],
+            timestamp: Date().addingTimeInterval(-14400),
+            isAnonymous: false
+        ),
+        NewsPost(
+            id: UUID(),
+            author: "정민호",
+            authorTicker: "MINHO",
+            avatarColor: .purple,
+            title: "이번 주 수익률 TOP 3 예측",
+            content: "박지민: 논문 마감 임박 + 높은 진행률로 급등 예상\n김철수: 꾸준한 상승세\n최수진: AWS 자격증 곧 취득할 듯",
+            category: .analysis,
+            likes: 18,
+            comments: [],
+            timestamp: Date().addingTimeInterval(-28800),
+            isAnonymous: false
+        ),
+    ]
+}
+
+// MARK: - NewsComment
+struct NewsComment: Identifiable, Hashable {
+    let id: UUID
+    var author: String
+    var content: String
+    var timestamp: Date
+
+    var timeAgo: String {
+        let interval = Date().timeIntervalSince(timestamp)
+        if interval < 60 { return "방금 전" }
+        if interval < 3600 { return "\(Int(interval / 60))분 전" }
+        if interval < 86400 { return "\(Int(interval / 3600))시간 전" }
+        return "\(Int(interval / 86400))일 전"
+    }
+}
+
+// MARK: - NewsCategory
+enum NewsCategory: String, CaseIterable {
+    case all = "전체"
+    case free = "자유"
+    case analysis = "분석"
+    case tip = "꿀팁"
+    case discussion = "토론"
+
+    var icon: String {
+        switch self {
+        case .all: return "square.grid.2x2"
+        case .free: return "bubble.left.fill"
+        case .analysis: return "chart.bar.fill"
+        case .tip: return "lightbulb.fill"
+        case .discussion: return "text.bubble.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .all: return .gray
+        case .free: return .cyan
+        case .analysis: return .blue
+        case .tip: return .yellow
+        case .discussion: return .green
+        }
+    }
+}
+
 // MARK: - BetType
 enum BetType: String {
     case success = "성공"

@@ -188,6 +188,8 @@ struct DetailView: View {
                 StoreView()
             case .casino:
                 CasinoView()
+            case .news:
+                NewsView()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

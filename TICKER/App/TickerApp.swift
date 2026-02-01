@@ -33,6 +33,9 @@ class AppState: ObservableObject {
     @Published var myListings: [Listing] = Listing.sampleData
     @Published var storeItems: [StoreItem] = StoreItem.sampleData
     
+    // News / Community
+    @Published var newsPosts: [NewsPost] = NewsPost.sampleData
+
     // User Gamification Stats
     @Published var userStockPrice: Double = 10000.0 // Adjusted for 1M economy
     @Published var streak: Int = 0
@@ -104,9 +107,10 @@ enum SidebarTab: String, CaseIterable, Identifiable {
     case watchlist = "관심 종목"
     case store = "암시장"
     case casino = "카지노"
-    
+    case news = "뉴스"
+
     var id: String { rawValue }
-    
+
     var icon: String {
         switch self {
         case .portfolio: return "chart.pie.fill"
@@ -115,9 +119,10 @@ enum SidebarTab: String, CaseIterable, Identifiable {
         case .watchlist: return "star.fill"
         case .store: return "bag.fill"
         case .casino: return "dice.fill"
+        case .news: return "newspaper.fill"
         }
     }
-    
+
     var color: Color {
         switch self {
         case .portfolio: return .blue
@@ -126,6 +131,7 @@ enum SidebarTab: String, CaseIterable, Identifiable {
         case .watchlist: return .yellow
         case .store: return .purple
         case .casino: return .pink
+        case .news: return .cyan
         }
     }
 }
