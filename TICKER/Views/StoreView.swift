@@ -4,6 +4,9 @@ struct StoreView: View {
     @EnvironmentObject var appState: AppState
     @State private var selectedCategory: StoreCategory? = nil
     @State private var selectedItem: StoreItem?
+    @State private var showInsufficientFundsAlert = false
+    @State private var showPurchaseSuccessAlert = false
+    @State private var alertMessage = ""
     
     private var filteredItems: [StoreItem] {
         guard let category = selectedCategory else {
@@ -31,7 +34,19 @@ struct StoreView: View {
         }
         .navigationTitle("암시장")
         .sheet(item: $selectedItem) { item in
-            ItemDetailSheet(item: item)
+            ItemDetailSheet(item: item, onPurchase: {
+                purchaseItem(item)
+            }, cash: appState.cash)
+        }
+        .alert("잔고 부족", isPresented: $showInsufficientFundsAlert) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text(alertMessage)
+        }
+        .alert("구매 완료", isPresented: $showPurchaseSuccessAlert) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text(alertMessage)
         }
     }
     
@@ -56,10 +71,10 @@ struct StoreView: View {
             Spacer()
             
             VStack(alignment: .trailing, spacing: 4) {
-                Text("보유 자금")
+                Text("보유 현금")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text("₩125,000")
+                Text(formatCashDisplay(Int(appState.cash)) + "P")
                     .font(.title2.weight(.bold))
                     .foregroundStyle(AppTheme.neon)
             }
@@ -112,6 +127,29 @@ struct StoreView: View {
         }
     }
     
+    // MARK: - Purchase Logic
+    private func purchaseItem(_ item: StoreItem) {
+        let success = appState.purchaseStoreItem(item: item)
+        if success {
+            alertMessage = "'\(item.name)' 구매 완료! (\(item.price)P 차감)"
+            selectedItem = nil
+            showPurchaseSuccessAlert = true
+        } else {
+            let formatter = NumberFormatter()
+            formatter.numberStyle = .decimal
+            let cashStr = formatter.string(from: NSNumber(value: Int(appState.cash))) ?? "0"
+            alertMessage = "보유 현금(\(cashStr)P)이 부족합니다.\n필요 금액: \(item.price)P"
+            selectedItem = nil
+            showInsufficientFundsAlert = true
+        }
+    }
+
+    private func formatCashDisplay(_ value: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: value)) ?? "0"
+    }
+
     // MARK: - Warning Banner
     private var warningBanner: some View {
         HStack(spacing: 12) {
@@ -158,8 +196,13 @@ struct CategoryButton: View {
 // MARK: - Store Item Card
 struct StoreItemCard: View {
     let item: StoreItem
+    @EnvironmentObject var appState: AppState
     @State private var isHovered = false
-    
+
+    private var canAfford: Bool {
+        appState.cash >= Double(item.price)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Icon & Rarity
@@ -168,14 +211,14 @@ struct StoreItemCard: View {
                     Circle()
                         .fill(item.rarity.color.opacity(0.2))
                         .frame(width: 50, height: 50)
-                    
+
                     Image(systemName: item.icon)
                         .font(.title2)
                         .foregroundStyle(item.rarity.color)
                 }
-                
+
                 Spacer()
-                
+
                 Text(item.rarity.rawValue)
                     .font(.caption.weight(.semibold))
                     .padding(.horizontal, 8)
@@ -184,31 +227,33 @@ struct StoreItemCard: View {
                     .foregroundStyle(item.rarity.color)
                     .clipShape(RoundedRectangle(cornerRadius: 4))
             }
-            
+
             // Info
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.name)
                     .font(.subheadline.weight(.semibold))
-                
+
                 Text(item.description)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
             }
-            
+
             Spacer()
-            
+
             // Price & Buy
             HStack {
-                Text("₩\(item.price)")
+                Text("\(formatStorePrice(item.price))P")
                     .font(.subheadline.weight(.bold))
-                    .foregroundStyle(AppTheme.neon)
-                
+                    .foregroundStyle(canAfford ? AppTheme.neon : AppTheme.loss)
+
                 Spacer()
-                
-                Button("구매") {}
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
+
+                if !canAfford {
+                    Text("잔고 부족")
+                        .font(.caption2)
+                        .foregroundStyle(AppTheme.loss)
+                }
             }
         }
         .padding()
@@ -225,13 +270,31 @@ struct StoreItemCard: View {
             isHovered = hovering
         }
     }
+
+    private func formatStorePrice(_ value: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: value)) ?? "0"
+    }
 }
 
 // MARK: - Item Detail Sheet
 struct ItemDetailSheet: View {
     let item: StoreItem
+    var onPurchase: () -> Void
+    var cash: Double
     @Environment(\.dismiss) private var dismiss
-    
+
+    private var canAfford: Bool {
+        cash >= Double(item.price)
+    }
+
+    private func formatDetailPrice(_ value: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: value)) ?? "0"
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -244,7 +307,7 @@ struct ItemDetailSheet: View {
                 }
             }
             .padding()
-            
+
             // Content
             VStack(spacing: 24) {
                 // Icon
@@ -252,17 +315,17 @@ struct ItemDetailSheet: View {
                     Circle()
                         .fill(item.rarity.color.opacity(0.2))
                         .frame(width: 100, height: 100)
-                    
+
                     Image(systemName: item.icon)
                         .font(.system(size: 44))
                         .foregroundStyle(item.rarity.color)
                 }
-                
+
                 // Info
                 VStack(spacing: 8) {
                     Text(item.name)
                         .font(.title2.weight(.bold))
-                    
+
                     Text(item.rarity.rawValue)
                         .font(.caption.weight(.semibold))
                         .padding(.horizontal, 12)
@@ -271,26 +334,26 @@ struct ItemDetailSheet: View {
                         .foregroundStyle(item.rarity.color)
                         .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
-                
+
                 Text(item.description)
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                
+
                 Divider()
-                
+
                 // Effects
                 VStack(alignment: .leading, spacing: 12) {
                     Text("효과")
                         .font(.subheadline.weight(.semibold))
-                    
+
                     HStack {
                         Image(systemName: "sparkles")
                             .foregroundStyle(item.rarity.color)
                         Text("24시간 동안 효과 지속")
                             .font(.subheadline)
                     }
-                    
+
                     HStack {
                         Image(systemName: "exclamationmark.triangle")
                             .foregroundStyle(.orange)
@@ -299,9 +362,9 @@ struct ItemDetailSheet: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                
+
                 Spacer()
-                
+
                 // Purchase
                 VStack(spacing: 12) {
                     HStack {
@@ -309,22 +372,33 @@ struct ItemDetailSheet: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         Spacer()
-                        Text("₩\(item.price)")
+                        Text("\(formatDetailPrice(item.price))P")
                             .font(.title3.weight(.bold))
-                            .foregroundStyle(AppTheme.neon)
+                            .foregroundStyle(canAfford ? AppTheme.neon : AppTheme.loss)
                     }
-                    
-                    Button(action: { dismiss() }) {
-                        Text("구매하기")
+
+                    HStack {
+                        Text("보유 현금")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("\(formatDetailPrice(Int(cash)))P")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Button(action: { onPurchase() }) {
+                        Text(canAfford ? "구매하기" : "잔고 부족")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
+                    .disabled(!canAfford)
                 }
             }
             .padding(24)
         }
-        .frame(width: 350, height: 500)
+        .frame(width: 350, height: 550)
     }
 }
 

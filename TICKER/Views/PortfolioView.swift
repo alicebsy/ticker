@@ -103,7 +103,7 @@ struct PortfolioView: View {
 
             Spacer()
 
-            // Right: invested + cash
+            // Right: invested + cash + my code
             VStack(alignment: .trailing, spacing: 16) {
                 VStack(alignment: .trailing, spacing: 4) {
                     Text("투자 중")
@@ -121,6 +121,27 @@ struct PortfolioView: View {
                     Text(formatPrice(Int(appState.totalAssets) - totalInvested) + "P")
                         .font(.title3.weight(.semibold).monospacedDigit())
                         .foregroundStyle(AppTheme.primaryText)
+                }
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("내 코드")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.secondaryText)
+                    HStack(spacing: 6) {
+                        Text(appState.myFriendCode)
+                            .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(AppTheme.neon)
+                        Button {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(appState.myFriendCode, forType: .string)
+                        } label: {
+                            Image(systemName: "doc.on.doc")
+                                .font(.caption)
+                                .foregroundStyle(AppTheme.secondaryText)
+                        }
+                        .buttonStyle(.plain)
+                        .help("코드 복사")
+                    }
                 }
             }
         }
@@ -167,18 +188,36 @@ struct PortfolioView: View {
                 .font(.headline)
                 .foregroundStyle(AppTheme.primaryText)
 
-            VStack(spacing: 0) {
-                ForEach(recentActivities) { activity in
-                    ActivityRow(activity: activity)
+            if recentActivities.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "clock")
+                        .font(.title2)
+                        .foregroundStyle(AppTheme.tertiaryText)
+                    Text("아직 활동 내역이 없습니다")
+                        .font(.subheadline)
+                        .foregroundStyle(AppTheme.secondaryText)
+                    Text("주식을 매수/매도하거나 아이템을 구매하면 여기에 표시됩니다")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.tertiaryText)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 30)
+                .cardStyle()
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(recentActivities) { activity in
+                        ActivityRow(activity: activity)
 
-                    if activity.id != recentActivities.last?.id {
-                        Divider()
-                            .background(AppTheme.border)
-                            .padding(.leading, 44)
+                        if activity.id != recentActivities.last?.id {
+                            Divider()
+                                .background(AppTheme.border)
+                                .padding(.leading, 44)
+                        }
                     }
                 }
+                .cardStyle()
             }
-            .cardStyle()
         }
     }
 
@@ -369,7 +408,7 @@ struct PortfolioView: View {
 
     // MARK: - Helpers
     private var totalInvested: Int {
-        appState.holdings.reduce(0) { $0 + Int($1.currentPrice) * $1.quantity }
+        Int(appState.totalInvested)
     }
 
     private func formatPrice(_ value: Int) -> String {
@@ -379,12 +418,11 @@ struct PortfolioView: View {
     }
 
     private var recentActivities: [Activity] {
-        [
-            Activity(type: .buy, description: "김철수(CHUL) 5주 매수", amount: 76000, time: "10분 전"),
-            Activity(type: .sell, description: "이영희(YOUNG) 3주 매도", amount: 26700, time: "1시간 전"),
-            Activity(type: .dividend, description: "박지민(JIMIN) 배당금 수령", amount: 5000, time: "3시간 전"),
-            Activity(type: .listing, description: "'iOS 앱 출시' 상장 완료", amount: 10000, time: "어제"),
-        ]
+        if appState.activities.isEmpty {
+            // 활동이 없을 때 기본 안내
+            return []
+        }
+        return Array(appState.activities.prefix(10))
     }
     
     // Using appState.mySkills instead of mockSkills
@@ -406,10 +444,27 @@ struct Activity: Identifiable {
     let description: String
     let amount: Int
     let time: String
+    let timestamp: Date
+
+    init(type: ActivityType, description: String, amount: Int, time: String, timestamp: Date = Date()) {
+        self.type = type
+        self.description = description
+        self.amount = amount
+        self.time = time
+        self.timestamp = timestamp
+    }
+
+    var timeAgo: String {
+        let interval = Date().timeIntervalSince(timestamp)
+        if interval < 60 { return "방금 전" }
+        if interval < 3600 { return "\(Int(interval / 60))분 전" }
+        if interval < 86400 { return "\(Int(interval / 3600))시간 전" }
+        return "\(Int(interval / 86400))일 전"
+    }
 }
 
 enum ActivityType {
-    case buy, sell, dividend, listing
+    case buy, sell, dividend, listing, purchase, bet
 
     var icon: String {
         switch self {
@@ -417,6 +472,8 @@ enum ActivityType {
         case .sell: return "arrow.up.circle.fill"
         case .dividend: return "gift.fill"
         case .listing: return "plus.circle.fill"
+        case .purchase: return "bag.fill"
+        case .bet: return "dice.fill"
         }
     }
 
@@ -426,12 +483,18 @@ enum ActivityType {
         case .sell: return .orange
         case .dividend: return .green
         case .listing: return .purple
+        case .purchase: return .purple
+        case .bet: return .pink
         }
     }
 }
 
 struct ActivityRow: View {
     let activity: Activity
+
+    private var isIncome: Bool {
+        activity.type == .sell || activity.type == .dividend
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -444,23 +507,25 @@ struct ActivityRow: View {
                 Text(activity.description)
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.primaryText)
-                Text(activity.time)
+                Text(activity.timeAgo)
                     .font(.caption)
                     .foregroundStyle(AppTheme.tertiaryText)
             }
 
             Spacer()
 
-            Text((activity.type == .sell || activity.type == .dividend ? "+" : "-") + "₩\(activity.amount)")
+            Text((isIncome ? "+" : "-") + formatActivityPrice(activity.amount) + "P")
                 .font(.system(.subheadline, weight: .medium).monospacedDigit())
-                .foregroundStyle(
-                    activity.type == .sell || activity.type == .dividend
-                        ? AppTheme.gain
-                        : AppTheme.primaryText
-                )
+                .foregroundStyle(isIncome ? AppTheme.gain : AppTheme.primaryText)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+    }
+
+    private func formatActivityPrice(_ value: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: value)) ?? "0"
     }
 }
 

@@ -6,6 +6,9 @@ struct CasinoView: View {
     @State private var betAmount = ""
     @State private var selectedFriend: Friend?
     @State private var selectedBetType: BetType = .success
+    @State private var showInsufficientFundsAlert = false
+    @State private var showBetSuccessAlert = false
+    @State private var alertMessage = ""
     
     enum CasinoGame: String, CaseIterable {
         case friendBet = "친구 베팅"
@@ -38,6 +41,46 @@ struct CasinoView: View {
             .padding(24)
         }
         .navigationTitle("카지노")
+        .alert("잔고 부족", isPresented: $showInsufficientFundsAlert) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text(alertMessage)
+        }
+        .alert("베팅 완료", isPresented: $showBetSuccessAlert) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text(alertMessage)
+        }
+    }
+
+    // MARK: - Bet Action
+    private func placeBetAction() {
+        guard let friend = selectedFriend else { return }
+        guard let amount = Int(betAmount), amount > 0 else { return }
+
+        if Double(amount) > appState.cash {
+            alertMessage = "보유 현금(\(formatCasinoPrice(Int(appState.cash)))P)이 부족합니다.\n베팅 금액: \(formatCasinoPrice(amount))P"
+            showInsufficientFundsAlert = true
+            return
+        }
+
+        let success = appState.placeBet(amount: amount, target: friend.name, betType: selectedBetType)
+        if success {
+            alertMessage = "\(friend.name)에게 '\(selectedBetType.rawValue)' \(formatCasinoPrice(amount))P 베팅 완료!"
+            showBetSuccessAlert = true
+            // 초기화
+            betAmount = ""
+            selectedFriend = nil
+        } else {
+            alertMessage = "베팅에 실패했습니다. 잔고를 확인해주세요."
+            showInsufficientFundsAlert = true
+        }
+    }
+
+    private func formatCasinoPrice(_ value: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: value)) ?? "0"
     }
     
     // MARK: - Header Section
@@ -64,7 +107,7 @@ struct CasinoView: View {
                 Text("베팅 가능 금액")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text("₩85,000")
+                Text(formatCasinoPrice(Int(appState.cash)) + "P")
                     .font(.title2.weight(.bold))
                     .foregroundStyle(AppTheme.casino)
             }
@@ -100,7 +143,7 @@ struct CasinoView: View {
                 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
-                        ForEach(appState.watchlist) { friend in
+                        ForEach(appState.friends) { friend in
                             FriendBetCard(
                                 friend: friend,
                                 isSelected: selectedFriend?.id == friend.id,
@@ -216,7 +259,9 @@ struct CasinoView: View {
                 }
             }
             
-            Button(action: {}) {
+            Button {
+                placeBetAction()
+            } label: {
                 Text("베팅하기")
                     .frame(maxWidth: .infinity)
             }

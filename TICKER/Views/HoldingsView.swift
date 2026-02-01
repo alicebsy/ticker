@@ -250,8 +250,8 @@ struct HoldingsView: View {
             }
             
             VStack(spacing: 12) {
-                let starredFriends = appState.watchlist.filter { $0.isStarred }
-                
+                let starredFriends = appState.friends.filter { $0.isStarred }
+
                 if starredFriends.isEmpty {
                     Text("관심 종목이 없습니다")
                         .font(.subheadline)
@@ -270,8 +270,8 @@ struct HoldingsView: View {
                                 sparklineData: friend.sparklineData,
                                 isStarred: friend.isStarred,
                                 onStarClick: {
-                                    if let index = appState.watchlist.firstIndex(where: { $0.id == friend.id }) {
-                                        appState.watchlist[index].isStarred.toggle()
+                                    if let index = appState.friends.firstIndex(where: { $0.id == friend.id }) {
+                                        appState.friends[index].isStarred.toggle()
                                     }
                                 }
                             )
@@ -451,12 +451,23 @@ struct HoldingRow: View {
 // MARK: - Holding Inspector
 struct HoldingInspector: View {
     let holding: Holding
+    @EnvironmentObject var appState: AppState
     @State private var orderType: OrderType = .buy
     @State private var quantity = "1"
+    @State private var selectedListingID: UUID?
+    @State private var showInsufficientFundsAlert = false
+    @State private var showOverSellAlert = false
+    @State private var showSuccessAlert = false
+    @State private var alertMessage = ""
 
     enum OrderType: String, CaseIterable {
         case buy = "매수"
         case sell = "매도"
+    }
+
+    // 이 사람의 Friend 데이터에서 상장 항목 가져오기
+    private var friendListings: [FriendListing] {
+        appState.friends.first(where: { $0.name == holding.name })?.listings ?? []
     }
 
     var body: some View {
@@ -504,7 +515,7 @@ struct HoldingInspector: View {
 
                 // Stats
                 VStack(spacing: 12) {
-                    StatRow(label: "보유 수량", value: "\(holding.quantity)주")
+                    StatRow(label: "총 보유 수량", value: "\(holding.quantity)주")
                     StatRow(label: "평균 단가", value: formatPrice(Int(holding.currentPrice * 0.9)) + "P")
                     StatRow(label: "평가 금액", value: formatPrice(Int(holding.totalValue)) + "P")
 
@@ -516,11 +527,158 @@ struct HoldingInspector: View {
                 Divider()
                     .background(AppTheme.border)
 
+                // My Investments in this person's listings
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "chart.bar.doc.horizontal")
+                            .foregroundStyle(.blue)
+                        Text("투자 항목별 내역")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppTheme.primaryText)
+                    }
+
+                    if holding.investments.isEmpty {
+                        Text("투자 내역이 없습니다")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.tertiaryText)
+                            .padding(.vertical, 6)
+                    } else {
+                        VStack(spacing: 6) {
+                            ForEach(holding.investments) { investment in
+                                Button {
+                                    // Find corresponding listing and select it
+                                    if let match = friendListings.first(where: { $0.title == investment.listingTitle }) {
+                                        withAnimation(.easeInOut(duration: 0.15)) {
+                                            selectedListingID = match.id
+                                            // Auto-set order type to Sell for convenience?
+                                            orderType = .sell
+                                        }
+                                    }
+                                } label: {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(investment.listingTitle)
+                                                .font(.subheadline.weight(.medium))
+                                                .foregroundStyle(AppTheme.primaryText)
+                                            Text("\(investment.quantity)주 보유")
+                                                .font(.caption)
+                                                .foregroundStyle(AppTheme.secondaryText)
+                                        }
+                                        Spacer()
+                                        Text(formatPrice(Int(investment.totalValue)) + "P")
+                                            .font(.system(.caption, weight: .semibold).monospacedDigit())
+                                            .foregroundStyle(AppTheme.primaryText)
+                                    }
+                                    .padding(10)
+                                    .background(
+                                        // Highlight if selected
+                                        (selectedListingID != nil && friendListings.first(where: { $0.id == selectedListingID })?.title == investment.listingTitle)
+                                            ? Color.blue.opacity(0.1)
+                                            : AppTheme.cardBackgroundLight
+                                    )
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(
+                                                (selectedListingID != nil && friendListings.first(where: { $0.id == selectedListingID })?.title == investment.listingTitle)
+                                                    ? Color.blue.opacity(0.5)
+                                                    : Color.clear,
+                                                lineWidth: 1
+                                            )
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+                .padding(16)
+
+                Divider()
+                    .background(AppTheme.border)
+
+                // This person's listings (to buy/sell more)
+                if !friendListings.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "list.bullet.rectangle")
+                                .foregroundStyle(.green)
+                            Text("상장 항목")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(AppTheme.primaryText)
+                        }
+
+                        VStack(spacing: 6) {
+                            ForEach(friendListings) { listing in
+                                Button {
+                                    withAnimation(.easeInOut(duration: 0.15)) {
+                                        selectedListingID = listing.id
+                                    }
+                                } label: {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(listing.title)
+                                                .font(.subheadline.weight(.medium))
+                                                .foregroundStyle(AppTheme.primaryText)
+                                            GeometryReader { geo in
+                                                ZStack(alignment: .leading) {
+                                                    RoundedRectangle(cornerRadius: 2)
+                                                        .fill(AppTheme.cardBackgroundLight)
+                                                        .frame(height: 4)
+                                                    RoundedRectangle(cornerRadius: 2)
+                                                        .fill(Color.green)
+                                                        .frame(width: max(4, geo.size.width * listing.progress), height: 4)
+                                                }
+                                            }
+                                            .frame(height: 4)
+                                        }
+                                        Spacer()
+                                        Text("\(Int(listing.progress * 100))%")
+                                            .font(.system(.caption, weight: .semibold).monospacedDigit())
+                                            .foregroundStyle(AppTheme.secondaryText)
+                                    }
+                                    .padding(10)
+                                    .background(
+                                        selectedListingID == listing.id
+                                            ? Color.green.opacity(0.1)
+                                            : AppTheme.cardBackgroundLight
+                                    )
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(
+                                                selectedListingID == listing.id ? Color.green.opacity(0.5) : Color.clear,
+                                                lineWidth: 1
+                                            )
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .padding(16)
+                }
+
+                Divider()
+                    .background(AppTheme.border)
+
                 // Order Form
                 VStack(alignment: .leading, spacing: 16) {
                     Text("주문")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppTheme.primaryText)
+
+                    if let selID = selectedListingID, let listing = friendListings.first(where: { $0.id == selID }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                                .font(.caption)
+                            Text("'\(listing.title)' 선택됨")
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                        }
+                        .padding(.bottom, 4)
+                    }
 
                     // Custom Segmented Picker
                     HStack(spacing: 0) {
@@ -612,7 +770,20 @@ struct HoldingInspector: View {
                             .foregroundStyle(AppTheme.primaryText)
                     }
 
-                    Button(action: {}) {
+                    // 보유 현금 표시
+                    HStack {
+                        Text("보유 현금")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.secondaryText)
+                        Spacer()
+                        Text(formatPrice(Int(appState.cash)) + "P")
+                            .font(.system(.caption, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(AppTheme.secondaryText)
+                    }
+
+                    Button {
+                        executeOrder()
+                    } label: {
                         Text(orderType == .buy ? "매수하기" : "매도하기")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.white)
@@ -627,6 +798,89 @@ struct HoldingInspector: View {
             }
         }
         .background(AppTheme.cardBackground)
+        .alert("잔고 부족", isPresented: $showInsufficientFundsAlert) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text(alertMessage)
+        }
+        .alert("매도 불가", isPresented: $showOverSellAlert) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text(alertMessage)
+        }
+        .alert("주문 완료", isPresented: $showSuccessAlert) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text(alertMessage)
+        }
+    }
+
+    private func executeOrder() {
+        let qty = Int(quantity) ?? 1
+
+        if orderType == .buy {
+            // 매수
+            guard let selID = selectedListingID,
+                  let listing = friendListings.first(where: { $0.id == selID }) else {
+                alertMessage = "상장 항목을 선택해주세요."
+                showOverSellAlert = true
+                return
+            }
+
+            let totalCost = holding.currentPrice * Double(qty)
+            if appState.cash < totalCost {
+                alertMessage = "보유 현금(\(formatPrice(Int(appState.cash)))P)이 부족합니다.\n필요 금액: \(formatPrice(Int(totalCost)))P"
+                showInsufficientFundsAlert = true
+                return
+            }
+
+            let success = appState.buyStock(
+                friendName: holding.name,
+                listingTitle: listing.title,
+                quantity: qty,
+                pricePerShare: holding.currentPrice
+            )
+            if success {
+                alertMessage = "\(holding.name)의 '\(listing.title)' \(qty)주 매수 완료!"
+                showSuccessAlert = true
+                quantity = "1"
+                selectedListingID = nil
+            }
+        } else {
+            // 매도
+            guard let selID = selectedListingID,
+                  let listing = friendListings.first(where: { $0.id == selID }) else {
+                alertMessage = "상장 항목을 선택해주세요."
+                showOverSellAlert = true
+                return
+            }
+
+            // 보유량 확인
+            let myQty = holding.investments.first(where: { $0.listingTitle == listing.title })?.quantity ?? 0
+            if qty > myQty {
+                alertMessage = "보유 수량(\(myQty)주)보다 많이 매도할 수 없습니다."
+                showOverSellAlert = true
+                return
+            }
+            if myQty == 0 {
+                alertMessage = "해당 항목을 보유하고 있지 않습니다."
+                showOverSellAlert = true
+                return
+            }
+
+            let success = appState.sellStock(
+                friendName: holding.name,
+                listingTitle: listing.title,
+                quantity: qty,
+                pricePerShare: holding.currentPrice
+            )
+            if success {
+                alertMessage = "\(holding.name)의 '\(listing.title)' \(qty)주 매도 완료!"
+                showSuccessAlert = true
+                quantity = "1"
+                selectedListingID = nil
+            }
+        }
     }
 
     private func formatPrice(_ value: Int) -> String {

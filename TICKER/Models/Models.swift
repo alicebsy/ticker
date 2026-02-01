@@ -1,5 +1,25 @@
 import SwiftUI
 
+// MARK: - HoldingInvestment (어떤 상장 항목에 몇 주 투자했는지)
+struct HoldingInvestment: Identifiable, Hashable {
+    let id: UUID
+    var listingTitle: String
+    var quantity: Int
+    var pricePerShare: Double
+
+    var totalValue: Double {
+        pricePerShare * Double(quantity)
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+
+    static func == (lhs: HoldingInvestment, rhs: HoldingInvestment) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
 // MARK: - Holding
 struct Holding: Identifiable, Hashable {
     let id: UUID
@@ -10,6 +30,7 @@ struct Holding: Identifiable, Hashable {
     var quantity: Int
     var avatarColor: Color
     var sparklineData: [Double]
+    var investments: [HoldingInvestment] // 이 사람의 어떤 항목에 투자했는지
 
     var totalValue: Double {
         currentPrice * Double(quantity)
@@ -32,7 +53,11 @@ struct Holding: Identifiable, Hashable {
             change: 3.5,
             quantity: 10,
             avatarColor: .blue,
-            sparklineData: [100, 105, 103, 108, 112, 110, 115, 118, 120, 122]
+            sparklineData: [100, 105, 103, 108, 112, 110, 115, 118, 120, 122],
+            investments: [
+                HoldingInvestment(id: UUID(), listingTitle: "운동 루틴", quantity: 6, pricePerShare: 15200),
+                HoldingInvestment(id: UUID(), listingTitle: "독서 목표", quantity: 4, pricePerShare: 15200),
+            ]
         ),
         Holding(
             id: UUID(),
@@ -42,7 +67,10 @@ struct Holding: Identifiable, Hashable {
             change: -1.2,
             quantity: 25,
             avatarColor: .pink,
-            sparklineData: [100, 98, 102, 97, 95, 93, 96, 94, 92, 90]
+            sparklineData: [100, 98, 102, 97, 95, 93, 96, 94, 92, 90],
+            investments: [
+                HoldingInvestment(id: UUID(), listingTitle: "포트폴리오 리뉴얼", quantity: 25, pricePerShare: 8900),
+            ]
         ),
         Holding(
             id: UUID(),
@@ -52,7 +80,11 @@ struct Holding: Identifiable, Hashable {
             change: 7.8,
             quantity: 5,
             avatarColor: .orange,
-            sparklineData: [100, 103, 107, 110, 108, 115, 120, 125, 128, 130]
+            sparklineData: [100, 103, 107, 110, 108, 115, 120, 125, 128, 130],
+            investments: [
+                HoldingInvestment(id: UUID(), listingTitle: "논문 작성", quantity: 3, pricePerShare: 22000),
+                HoldingInvestment(id: UUID(), listingTitle: "캐글 대회 참가", quantity: 2, pricePerShare: 22000),
+            ]
         ),
         Holding(
             id: UUID(),
@@ -62,7 +94,10 @@ struct Holding: Identifiable, Hashable {
             change: 0.5,
             quantity: 15,
             avatarColor: .green,
-            sparklineData: [100, 101, 99, 102, 100, 103, 101, 104, 102, 103]
+            sparklineData: [100, 101, 99, 102, 100, 103, 101, 104, 102, 103],
+            investments: [
+                HoldingInvestment(id: UUID(), listingTitle: "AWS 자격증 취득", quantity: 15, pricePerShare: 12500),
+            ]
         ),
         Holding(
             id: UUID(),
@@ -72,9 +107,29 @@ struct Holding: Identifiable, Hashable {
             change: -2.3,
             quantity: 8,
             avatarColor: .purple,
-            sparklineData: [110, 108, 112, 107, 105, 103, 108, 106, 104, 102]
+            sparklineData: [110, 108, 112, 107, 105, 103, 108, 106, 104, 102],
+            investments: [
+                HoldingInvestment(id: UUID(), listingTitle: "투자 유치", quantity: 3, pricePerShare: 31000),
+                HoldingInvestment(id: UUID(), listingTitle: "MVP 출시", quantity: 5, pricePerShare: 31000),
+            ]
         ),
     ]
+}
+
+// MARK: - FriendRequest
+struct FriendRequest: Identifiable, Hashable {
+    let id: UUID
+    var name: String
+    var avatarColor: Color
+    var isSentByMe: Bool // true = 내가 보낸 요청, false = 나한테 온 요청
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+
+    static func == (lhs: FriendRequest, rhs: FriendRequest) -> Bool {
+        lhs.id == rhs.id
+    }
 }
 
 // MARK: - FriendListing (a friend's active todo/listing you can invest in)
