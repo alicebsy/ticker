@@ -104,6 +104,7 @@ struct Friend: Identifiable, Hashable {
     var sparklineData: [Double]
     var skills: [String]
     var trustScore: Int
+    var isStarred: Bool = false // Default to false
     var listings: [FriendListing]
 
     var isPositive: Bool { change >= 0 }

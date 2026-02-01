@@ -3,7 +3,7 @@ import SwiftUI
 struct PortfolioView: View {
     @EnvironmentObject var appState: AppState
     @State private var balanceHidden = false
-    @State private var visibility: PortfolioVisibility = .friends
+    // @State private var visibility: PortfolioVisibility = .publicVisible // Removed local state
 
     var body: some View {
         ScrollView {
@@ -21,13 +21,12 @@ struct PortfolioView: View {
                     Spacer()
 
                     Menu {
-                        Button { visibility = .publicVisible } label: { Label("공개", systemImage: "globe") }
-                        Button { visibility = .friends } label: { Label("친구만", systemImage: "person.2") }
-                        Button { visibility = .privateOnly } label: { Label("비공개", systemImage: "lock") }
+                        Button { appState.visibility = .publicVisible } label: { Label("공개", systemImage: "globe") }
+                        Button { appState.visibility = .privateOnly } label: { Label("비공개", systemImage: "lock") }
                     } label: {
                         HStack(spacing: 4) {
-                            Image(systemName: visibility.icon)
-                            Text(visibility.label)
+                            Image(systemName: appState.visibility.icon)
+                            Text(appState.visibility.label)
                         }
                         .font(.subheadline)
                         .padding(.horizontal, 12)
@@ -398,26 +397,7 @@ struct PortfolioView: View {
     }
 }
 
-// MARK: - Portfolio Visibility
-enum PortfolioVisibility {
-    case publicVisible, friends, privateOnly
 
-    var label: String {
-        switch self {
-        case .publicVisible: return "공개"
-        case .friends: return "친구만"
-        case .privateOnly: return "비공개"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .publicVisible: return "globe"
-        case .friends: return "person.2"
-        case .privateOnly: return "lock"
-        }
-    }
-}
 
 // MARK: - Activity
 struct Activity: Identifiable {

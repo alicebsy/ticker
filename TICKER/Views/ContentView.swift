@@ -182,8 +182,8 @@ struct DetailView: View {
                 ListingView()
             case .holdings:
                 HoldingsView()
-            case .watchlist:
-                WatchlistView()
+            case .allStocks:
+                AllStocksView()
             case .store:
                 StoreView()
             case .casino:

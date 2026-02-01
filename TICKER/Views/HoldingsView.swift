@@ -105,6 +105,9 @@ struct HoldingsView: View {
 
                     // Holdings Table Card
                     holdingsTableCard
+                    
+                    // Watchlist Section (Starred)
+                    watchlistSection
                 }
                 .padding(24)
             }
@@ -233,6 +236,50 @@ struct HoldingsView: View {
             }
         }
         .cardStyle()
+    }
+    
+    // MARK: - Watchlist Section
+    private var watchlistSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 6) {
+                Image(systemName: "star.fill")
+                    .foregroundStyle(.yellow)
+                Text("관심 종목")
+                    .font(.headline)
+                    .foregroundStyle(AppTheme.primaryText)
+            }
+            
+            VStack(spacing: 12) {
+                let starredFriends = appState.watchlist.filter { $0.isStarred }
+                
+                if starredFriends.isEmpty {
+                    Text("관심 종목이 없습니다")
+                        .font(.subheadline)
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .padding(.vertical, 20)
+                        .frame(maxWidth: .infinity)
+                        .background(AppTheme.cardBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                } else {
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                        ForEach(starredFriends) { friend in
+                            StockCardView(
+                                name: friend.name,
+                                price: Int(friend.currentPrice),
+                                change: friend.change,
+                                sparklineData: friend.sparklineData,
+                                isStarred: friend.isStarred,
+                                onStarClick: {
+                                    if let index = appState.watchlist.firstIndex(where: { $0.id == friend.id }) {
+                                        appState.watchlist[index].isStarred.toggle()
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Computed Properties

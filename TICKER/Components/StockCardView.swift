@@ -7,6 +7,8 @@ struct StockCardView: View {
     let price: Int
     let change: Double
     let sparklineData: [Double]
+    var isStarred: Bool = false
+    var onStarClick: (() -> Void)? = nil
 
     var onClick: (() -> Void)? = nil
 
@@ -56,6 +58,13 @@ struct StockCardView: View {
                         .frame(width: 60, height: 20)
                     PriceChangeBadge(change: change)
                 }
+                // Star Button
+                Button(action: { onStarClick?() }) {
+                    Image(systemName: isStarred ? "star.fill" : "star")
+                        .foregroundStyle(isStarred ? .yellow : AppTheme.secondaryText)
+                        .font(.system(size: 16))
+                }
+                .buttonStyle(.plain)
             }
             .padding(14)
             .background(
