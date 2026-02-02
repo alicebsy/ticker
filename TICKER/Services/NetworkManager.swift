@@ -45,6 +45,18 @@ class NetworkManager: ObservableObject {
     func login(request: LoginRequest) async throws -> LoginResponse {
         return try await self.request("/auth/login", method: "POST", body: request)
     }
+
+    // MARK: - Kakao OAuth
+    /// 카카오 로그인 URL 가져오기 (백엔드에서 OAuth2 시작점)
+    var kakaoLoginURL: URL? {
+        // 백엔드의 Spring Security OAuth2 시작 엔드포인트로 직접 이동
+        URL(string: "http://127.0.0.1:8080/oauth2/authorization/kakao")
+    }
+
+    /// userId로 유저 정보 조회 (카카오 로그인 콜백 후 사용)
+    func fetchUser(userId: Int) async throws -> UserResponse {
+        return try await self.request("/users/\(userId)")
+    }
 }
 
 // MARK: - Network Errors

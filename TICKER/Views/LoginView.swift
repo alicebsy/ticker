@@ -226,27 +226,24 @@ struct LoginView: View {
     
     private func handleKakaoLogin() {
         isLoading = true
-        
-        // 실제 앱에서는 KakaoSDK를 사용하여 로그인 처리
-        // KakaoSDKUser.UserApi.shared.loginWithKakaoTalk { ... }
-        
-        // 시뮬레이션: 1.5초 후 로그인 완료
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            withAnimation(.easeInOut(duration: 0.3)) {
-                appState.isLoggedIn = true
-                appState.currentUser = User(
-                    id: 1,
-                    name: "김주식",
-                    loginId: "kakao_user",
-                    profileImage: nil,
-                    loginMethod: .kakao,
-                    cashBalance: 100_000,
-                    marketCap: 100_000,
-                    totalAssets: 200_000,
-                    stockPrice: 1000
-                )
-            }
+
+        // 백엔드 OAuth2 시작점을 기본 브라우저로 열기
+        // 흐름: 브라우저 → 카카오 로그인 → 백엔드 콜백 → ticker://oauth?userId=N → 앱으로 복귀
+        guard let url = NetworkManager.shared.kakaoLoginURL else {
+            errorMessage = "카카오 로그인 URL을 생성할 수 없습니다"
+            showError = true
             isLoading = false
+            return
+        }
+
+        NSWorkspace.shared.open(url)
+
+        // 브라우저에서 로그인 후 onOpenURL로 앱이 다시 활성화되면 AppState에서 처리
+        // 로딩은 타임아웃으로 해제 (유저가 브라우저에서 취소할 수도 있으므로)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30) {
+            if !self.appState.isLoggedIn {
+                self.isLoading = false
+            }
         }
     }
     

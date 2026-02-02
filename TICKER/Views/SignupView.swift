@@ -52,7 +52,7 @@ struct SignupView: View {
                     VStack(spacing: 24) {
                         // 입력 폼
                         VStack(spacing: 20) {
-                            inputGroup(title: "아이디", placeholder: "사용할 아이디를 입력하세요", text: $loginId)
+                            inputGroup(title: "이메일", placeholder: "사용할 이메일을 입력하세요", text: $loginId)
                             
                             inputGroup(title: "비밀번호", placeholder: "비밀번호를 입력하세요", text: $password, isSecure: true)
                             

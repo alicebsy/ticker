@@ -167,13 +167,13 @@ struct Holding: Identifiable, Hashable {
 // MARK: - LoginMethod
 enum LoginMethod: String, Codable {
     case kakao
-    case apple
+    case email
     case guest
-    
+
     var displayName: String {
         switch self {
         case .kakao: return "카카오"
-        case .apple: return "Apple"
+        case .email: return "이메일"
         case .guest: return "게스트"
         }
     }
@@ -228,6 +228,19 @@ struct LoginResponse: Codable {
     let marketCap: Int
     let totalAssets: Int
     let message: String
+}
+
+/// 백엔드 GET /api/users/{id} 응답 (User 엔티티 직렬화)
+struct UserResponse: Codable {
+    let id: Int
+    let name: String
+    let loginId: String
+    let profileImageUrl: String?
+    let cashBalance: Int
+    let marketCap: Int
+    let totalAssets: Int
+    let stockPrice: Int
+    let oauthProvider: String?
 }
 
 // MARK: - FriendRequest

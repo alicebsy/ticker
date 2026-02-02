@@ -9,6 +9,10 @@ struct HumanStockMarketApp: App {
             ContentView()
                 .environmentObject(appState)
                 .frame(minWidth: 1000, minHeight: 700)
+                .onOpenURL { url in
+                    // ticker://oauth?userId=123 형태로 콜백
+                    handleOAuthCallback(url: url)
+                }
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
@@ -17,6 +21,20 @@ struct HumanStockMarketApp: App {
 
         Settings {
             SettingsView()
+        }
+    }
+
+    private func handleOAuthCallback(url: URL) {
+        guard url.scheme == "ticker",
+              url.host == "oauth",
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let userIdString = components.queryItems?.first(where: { $0.name == "userId" })?.value,
+              let userId = Int(userIdString) else {
+            return
+        }
+
+        Task {
+            await appState.handleKakaoOAuthCallback(userId: userId)
         }
     }
 }
@@ -52,14 +70,38 @@ class AppState: ObservableObject {
             name: response.name,
             loginId: response.loginId,
             profileImage: response.profileImageUrl,
-            loginMethod: .guest, // Defaulting for now
+            loginMethod: .email,
             cashBalance: response.cashBalance,
             marketCap: response.marketCap,
             totalAssets: response.totalAssets,
-            stockPrice: 1000 // Default or derived
+            stockPrice: 1000
         )
         self.cash = response.cashBalance
         self.isLoggedIn = true
+    }
+
+    /// 카카오 OAuth 콜백: userId로 유저 정보 조회 후 로그인 처리
+    @MainActor
+    func handleKakaoOAuthCallback(userId: Int) async {
+        do {
+            let userResponse = try await NetworkManager.shared.fetchUser(userId: userId)
+            self.currentUser = User(
+                id: userResponse.id,
+                name: userResponse.name,
+                loginId: userResponse.loginId,
+                profileImage: userResponse.profileImageUrl,
+                loginMethod: .kakao,
+                cashBalance: userResponse.cashBalance,
+                marketCap: userResponse.marketCap,
+                totalAssets: userResponse.totalAssets,
+                stockPrice: userResponse.stockPrice
+            )
+            self.cash = userResponse.cashBalance
+            self.userStockPrice = Double(userResponse.stockPrice)
+            self.isLoggedIn = true
+        } catch {
+            print("카카오 로그인 콜백 에러: \(error.localizedDescription)")
+        }
     }
 
     // 내 주식 정보 (유저 = 기업)
