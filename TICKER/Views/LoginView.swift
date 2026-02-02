@@ -147,6 +147,28 @@ struct LoginView: View {
                     .buttonStyle(.plain)
                     .disabled(isLoading)
                     
+                    // 이메일 로그인 버튼
+                    NavigationLink(destination: EmailLoginView()) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "door.right.hand.open")
+                                .font(.system(size: 18, weight: .semibold))
+                            
+                            Text("이메일로 로그인")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .background(.white.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(.white.opacity(0.2), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isLoading)
+                    
                     // 게스트 로그인
                     Button(action: handleGuestLogin) {
                         Text("게스트로 둘러보기")
