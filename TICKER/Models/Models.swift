@@ -608,3 +608,15 @@ enum BetType: String {
         }
     }
 }
+
+// MARK: - API Requests
+struct SignupRequest: Codable {
+    let loginId: String
+    let password: String
+    let name: String
+}
+
+struct LoginRequest: Codable {
+    let loginId: String
+    let password: String
+}

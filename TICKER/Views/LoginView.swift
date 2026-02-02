@@ -7,8 +7,9 @@ struct LoginView: View {
     @State private var errorMessage = ""
     
     var body: some View {
-        ZStack {
-            // 배경 그라데이션
+        NavigationStack {
+            ZStack {
+                // 배경 그라데이션
             LinearGradient(
                 colors: [
                     Color(red: 0.05, green: 0.05, blue: 0.12),
@@ -124,13 +125,13 @@ struct LoginView: View {
                             .frame(height: 1)
                     }
                     
-                    // Apple 로그인 버튼
-                    Button(action: handleAppleLogin) {
+                    // 회원가입 버튼 (Apple 로그인 대체)
+                    NavigationLink(destination: SignupView()) {
                         HStack(spacing: 12) {
-                            Image(systemName: "apple.logo")
+                            Image(systemName: "envelope.fill")
                                 .font(.system(size: 18, weight: .semibold))
                             
-                            Text("Apple로 로그인")
+                            Text("이메일로 회원가입")
                                 .font(.system(size: 16, weight: .semibold))
                         }
                         .foregroundStyle(.white)
@@ -188,9 +189,10 @@ struct LoginView: View {
                     .foregroundStyle(.white.opacity(0.4))
                 }
                 .padding(.bottom, 32)
-            }
             .padding(.horizontal, 40)
         }
+        }
+    } // End of NavigationStack
         .alert("로그인 오류", isPresented: $showError) {
             Button("확인", role: .cancel) {}
         } message: {
