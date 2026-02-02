@@ -112,7 +112,78 @@ public class DataLoader implements CommandLineRunner {
                 .rarity(ItemRarity.LEGENDARY)
                 .type(MarketItem.MarketItemType.SKILL)
                 .build();
+        MarketItem skill5 = MarketItem.builder()
+                .name("투자 취소권")
+                .description("한 건의 투자를 원금 회수하며 취소합니다")
+                .price(2800L)
+                .rarity(ItemRarity.EPIC)
+                .type(MarketItem.MarketItemType.SKILL)
+                .build();
+        MarketItem skill6 = MarketItem.builder()
+                .name("베팅 무효권")
+                .description("진행 중인 베팅 하나를 무효 처리합니다 (원금 반환)")
+                .price(3200L)
+                .rarity(ItemRarity.EPIC)
+                .type(MarketItem.MarketItemType.SKILL)
+                .build();
+        MarketItem skill7 = MarketItem.builder()
+                .name("진행률 부스터")
+                .description("할 일 진행률을 한 번에 +20% 올립니다")
+                .price(1500L)
+                .rarity(ItemRarity.RARE)
+                .type(MarketItem.MarketItemType.SKILL)
+                .build();
+        MarketItem skill8 = MarketItem.builder()
+                .name("베팅 수익 1.5배")
+                .description("다음 베팅에서 수익 시 1.5배로 받습니다")
+                .price(3500L)
+                .rarity(ItemRarity.LEGENDARY)
+                .type(MarketItem.MarketItemType.SKILL)
+                .build();
+        MarketItem skill9 = MarketItem.builder()
+                .name("주가 보호권")
+                .description("24시간 동안 내 주가 하락을 막습니다")
+                .price(5000L)
+                .rarity(ItemRarity.LEGENDARY)
+                .type(MarketItem.MarketItemType.SKILL)
+                .build();
 
-        marketItemRepository.saveAll(List.of(skill1, skill2, skill3, skill4));
+        // 암시장 특수 아이템
+        MarketItem special1 = MarketItem.builder()
+                .name("미스터리 박스")
+                .description("열면 랜덤 스킬 1개를 획득합니다")
+                .price(2000L)
+                .rarity(ItemRarity.RARE)
+                .type(MarketItem.MarketItemType.SPECIAL)
+                .build();
+        MarketItem special2 = MarketItem.builder()
+                .name("럭키 백")
+                .description("랜덤 아이템 1~3개가 나옵니다")
+                .price(2500L)
+                .rarity(ItemRarity.EPIC)
+                .type(MarketItem.MarketItemType.SPECIAL)
+                .build();
+
+        // 암시장 아이콘 (프로필 꾸미기)
+        MarketItem icon1 = MarketItem.builder()
+                .name("황금 테두리")
+                .description("프로필에 황금 테두리가 적용됩니다")
+                .price(800L)
+                .rarity(ItemRarity.COMMON)
+                .type(MarketItem.MarketItemType.ICON)
+                .build();
+        MarketItem icon2 = MarketItem.builder()
+                .name("VIP 뱃지")
+                .description("프로필에 VIP 뱃지가 표시됩니다")
+                .price(1200L)
+                .rarity(ItemRarity.RARE)
+                .type(MarketItem.MarketItemType.ICON)
+                .build();
+
+        marketItemRepository.saveAll(List.of(
+                skill1, skill2, skill3, skill4, skill5, skill6, skill7, skill8, skill9,
+                special1, special2,
+                icon1, icon2
+        ));
     }
 }
