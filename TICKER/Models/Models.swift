@@ -1,26 +1,100 @@
 import SwiftUI
 
-// MARK: - HoldingInvestment (어떤 상장 항목에 몇 주 투자했는지)
-struct HoldingInvestment: Identifiable, Hashable {
+// MARK: - TodoItem (하루의 할 일 항목)
+struct TodoItem: Identifiable, Hashable {
     let id: UUID
-    var listingTitle: String
-    var quantity: Int
-    var pricePerShare: Double
+    var title: String
+    var isCompleted: Bool
+    var completedAt: Date?
 
-    var totalValue: Double {
-        pricePerShare * Double(quantity)
+    init(id: UUID = UUID(), title: String, isCompleted: Bool = false, completedAt: Date? = nil) {
+        self.id = id
+        self.title = title
+        self.isCompleted = isCompleted
+        self.completedAt = completedAt
     }
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
     }
 
-    static func == (lhs: HoldingInvestment, rhs: HoldingInvestment) -> Bool {
+    static func == (lhs: TodoItem, rhs: TodoItem) -> Bool {
         lhs.id == rhs.id
     }
 }
 
-// MARK: - Holding
+// MARK: - DailyRecord (하루의 투두 기록)
+struct DailyRecord: Identifiable, Hashable {
+    let id: UUID
+    var date: Date
+    var todoItems: [TodoItem]
+    var isListed: Bool  // 상장 여부
+    var priceChangePercent: Double?  // nil = 아직 정산 전, 정산 후 값 설정
+
+    init(id: UUID = UUID(), date: Date = Date(), todoItems: [TodoItem] = [], isListed: Bool = false, priceChangePercent: Double? = nil) {
+        self.id = id
+        self.date = date
+        self.todoItems = todoItems
+        self.isListed = isListed
+        self.priceChangePercent = priceChangePercent
+    }
+
+    var completionRate: Double {
+        guard !todoItems.isEmpty else { return 0 }
+        return Double(todoItems.filter { $0.isCompleted }.count) / Double(todoItems.count)
+    }
+
+    var completedCount: Int {
+        todoItems.filter { $0.isCompleted }.count
+    }
+
+    var totalCount: Int {
+        todoItems.count
+    }
+
+    /// 완성률 기반 예상 주가 변동폭
+    var projectedPriceChange: Double {
+        let rate = completionRate
+        if rate >= 1.0 { return Double.random(in: 0.10...0.15) }  // 100%: +10~15%
+        if rate >= 0.75 { return 0.05 }                            // 75~99%: +5%
+        if rate >= 0.50 { return 0.0 }                              // 50~74%: 0%
+        if rate >= 0.25 { return -0.10 }                            // 25~49%: -10%
+        return -0.20                                                 // 0~24%: -20%
+    }
+
+    /// 예상 변동폭 텍스트
+    var projectedChangeText: String {
+        let rate = completionRate
+        if rate >= 1.0 { return "+10~15%" }
+        if rate >= 0.75 { return "+5%" }
+        if rate >= 0.50 { return "0%" }
+        if rate >= 0.25 { return "-10%" }
+        return "-20%"
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+
+    static func == (lhs: DailyRecord, rhs: DailyRecord) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
+// MARK: - PriceHistoryPoint (차트용 가격 이력)
+struct PriceHistoryPoint: Identifiable, Hashable {
+    let id: UUID
+    var date: Date
+    var price: Double
+
+    init(id: UUID = UUID(), date: Date = Date(), price: Double) {
+        self.id = id
+        self.date = date
+        self.price = price
+    }
+}
+
+// MARK: - Holding (내가 보유한 타인 주식)
 struct Holding: Identifiable, Hashable {
     let id: UUID
     var name: String
@@ -30,10 +104,19 @@ struct Holding: Identifiable, Hashable {
     var quantity: Int
     var avatarColor: Color
     var sparklineData: [Double]
-    var investments: [HoldingInvestment] // 이 사람의 어떤 항목에 투자했는지
+    var averageBuyPrice: Double  // 평균 매수가
 
     var totalValue: Double {
         currentPrice * Double(quantity)
+    }
+
+    var profitLoss: Double {
+        (currentPrice - averageBuyPrice) * Double(quantity)
+    }
+
+    var profitPercent: Double {
+        guard averageBuyPrice > 0 else { return 0 }
+        return ((currentPrice - averageBuyPrice) / averageBuyPrice) * 100
     }
 
     func hash(into hasher: inout Hasher) {
@@ -49,69 +132,34 @@ struct Holding: Identifiable, Hashable {
             id: UUID(),
             name: "김철수",
             ticker: "CHUL",
-            currentPrice: 15200,
+            currentPrice: 1200,
             change: 3.5,
-            quantity: 10,
+            quantity: 5,
             avatarColor: .blue,
-            sparklineData: [100, 105, 103, 108, 112, 110, 115, 118, 120, 122],
-            investments: [
-                HoldingInvestment(id: UUID(), listingTitle: "운동 루틴", quantity: 6, pricePerShare: 15200),
-                HoldingInvestment(id: UUID(), listingTitle: "독서 목표", quantity: 4, pricePerShare: 15200),
-            ]
+            sparklineData: [1000, 1050, 1030, 1080, 1120, 1100, 1150, 1180, 1200],
+            averageBuyPrice: 1050
         ),
         Holding(
             id: UUID(),
             name: "이영희",
             ticker: "YOUNG",
-            currentPrice: 8900,
+            currentPrice: 890,
             change: -1.2,
-            quantity: 25,
+            quantity: 10,
             avatarColor: .pink,
-            sparklineData: [100, 98, 102, 97, 95, 93, 96, 94, 92, 90],
-            investments: [
-                HoldingInvestment(id: UUID(), listingTitle: "포트폴리오 리뉴얼", quantity: 25, pricePerShare: 8900),
-            ]
+            sparklineData: [1000, 980, 960, 940, 920, 910, 900, 890],
+            averageBuyPrice: 1000
         ),
         Holding(
             id: UUID(),
             name: "박지민",
             ticker: "JIMIN",
-            currentPrice: 22000,
+            currentPrice: 1500,
             change: 7.8,
-            quantity: 5,
+            quantity: 3,
             avatarColor: .orange,
-            sparklineData: [100, 103, 107, 110, 108, 115, 120, 125, 128, 130],
-            investments: [
-                HoldingInvestment(id: UUID(), listingTitle: "논문 작성", quantity: 3, pricePerShare: 22000),
-                HoldingInvestment(id: UUID(), listingTitle: "캐글 대회 참가", quantity: 2, pricePerShare: 22000),
-            ]
-        ),
-        Holding(
-            id: UUID(),
-            name: "최수진",
-            ticker: "SUJIN",
-            currentPrice: 12500,
-            change: 0.5,
-            quantity: 15,
-            avatarColor: .green,
-            sparklineData: [100, 101, 99, 102, 100, 103, 101, 104, 102, 103],
-            investments: [
-                HoldingInvestment(id: UUID(), listingTitle: "AWS 자격증 취득", quantity: 15, pricePerShare: 12500),
-            ]
-        ),
-        Holding(
-            id: UUID(),
-            name: "정민호",
-            ticker: "MINHO",
-            currentPrice: 31000,
-            change: -2.3,
-            quantity: 8,
-            avatarColor: .purple,
-            sparklineData: [110, 108, 112, 107, 105, 103, 108, 106, 104, 102],
-            investments: [
-                HoldingInvestment(id: UUID(), listingTitle: "투자 유치", quantity: 3, pricePerShare: 31000),
-                HoldingInvestment(id: UUID(), listingTitle: "MVP 출시", quantity: 5, pricePerShare: 31000),
-            ]
+            sparklineData: [1000, 1100, 1200, 1150, 1300, 1400, 1500],
+            averageBuyPrice: 1100
         ),
     ]
 }
@@ -121,7 +169,7 @@ struct FriendRequest: Identifiable, Hashable {
     let id: UUID
     var name: String
     var avatarColor: Color
-    var isSentByMe: Bool // true = 내가 보낸 요청, false = 나한테 온 요청
+    var isSentByMe: Bool
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
@@ -132,35 +180,32 @@ struct FriendRequest: Identifiable, Hashable {
     }
 }
 
-// MARK: - FriendListing (a friend's active todo/listing you can invest in)
-struct FriendListing: Identifiable, Hashable {
-    let id: UUID
-    var title: String
-    var progress: Double // 0.0 ~ 1.0
-
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
-    }
-
-    static func == (lhs: FriendListing, rhs: FriendListing) -> Bool {
-        lhs.id == rhs.id
-    }
-}
-
-// MARK: - Friend
+// MARK: - Friend (유저 = 기업)
 struct Friend: Identifiable, Hashable {
     let id: UUID
     var name: String
     var ticker: String
-    var currentPrice: Double
-    var change: Double
+    var currentPrice: Double       // 주당 가격
+    var change: Double             // 일일 변동률 (%)
     var bio: String
     var avatarColor: Color
     var sparklineData: [Double]
-    var skills: [String]
-    var trustScore: Int
-    var isStarred: Bool = false // Default to false
-    var listings: [FriendListing]
+    var priceHistory: [PriceHistoryPoint]
+    var isStarred: Bool = false
+
+    // 주식 구조
+    var totalShares: Int { 100 }
+    var founderShares: Int { 70 }
+    var floatShares: Int { 30 }
+    var sharesOutstanding: Int     // 30주 중 이미 매수된 주식 수
+
+    var availableShares: Int { floatShares - sharesOutstanding }
+    var marketCap: Double { currentPrice * Double(totalShares) }  // 시가총액 = 내 가치
+    var tradingVolume: Double      // 오늘 거래대금
+
+    // 투두 기록
+    var todayRecord: DailyRecord?
+    var dailyRecords: [DailyRecord]
 
     var isPositive: Bool { change >= 0 }
 
@@ -172,163 +217,178 @@ struct Friend: Identifiable, Hashable {
         lhs.id == rhs.id
     }
 
+    static func generateSamplePriceHistory(basePrice: Double, days: Int = 14) -> [PriceHistoryPoint] {
+        var history: [PriceHistoryPoint] = []
+        var price = basePrice * 0.7
+        for i in 0..<days {
+            let date = Calendar.current.date(byAdding: .day, value: -(days - 1 - i), to: Date()) ?? Date()
+            price *= Double.random(in: 0.92...1.12)
+            price = max(100, price)
+            history.append(PriceHistoryPoint(date: date, price: price))
+        }
+        // 마지막 날 가격을 현재가에 맞추기
+        if var last = history.last {
+            last = PriceHistoryPoint(id: last.id, date: last.date, price: basePrice)
+            history[history.count - 1] = last
+        }
+        return history
+    }
+
+    static func generateSampleDailyRecords(days: Int = 7) -> [DailyRecord] {
+        var records: [DailyRecord] = []
+        let sampleTodos = [
+            ["알고리즘 3문제 풀기", "운동 30분", "독서 1시간", "코딩 프로젝트"],
+            ["영어 공부", "블로그 글쓰기", "운동", "요리하기"],
+            ["미팅 준비", "보고서 작성", "운동", "독서", "일기 쓰기"],
+            ["코딩 연습", "운동", "공부", "정리정돈"],
+        ]
+
+        for i in 0..<days {
+            let date = Calendar.current.date(byAdding: .day, value: -(days - i), to: Date()) ?? Date()
+            let todos = sampleTodos[i % sampleTodos.count]
+            let completedCount = Int.random(in: 1...todos.count)
+            let items = todos.enumerated().map { index, title in
+                TodoItem(title: title, isCompleted: index < completedCount)
+            }
+            let rate = Double(completedCount) / Double(todos.count)
+            let changePercent: Double
+            if rate >= 1.0 { changePercent = Double.random(in: 0.10...0.15) }
+            else if rate >= 0.75 { changePercent = 0.05 }
+            else if rate >= 0.50 { changePercent = 0.0 }
+            else if rate >= 0.25 { changePercent = -0.10 }
+            else { changePercent = -0.20 }
+
+            records.append(DailyRecord(
+                date: date,
+                todoItems: items,
+                isListed: true,
+                priceChangePercent: changePercent
+            ))
+        }
+        return records
+    }
+
     static let sampleData: [Friend] = [
         Friend(
             id: UUID(),
             name: "김철수",
             ticker: "CHUL",
-            currentPrice: 15200,
+            currentPrice: 1200,
             change: 3.5,
             bio: "풀스택 개발자, 매일 코딩에 열정을 쏟는 중",
             avatarColor: .blue,
-            sparklineData: [100, 105, 103, 108, 112, 110, 115, 118, 120, 122],
-            skills: ["Swift", "React", "Python"],
-            trustScore: 95,
-            listings: [
-                FriendListing(id: UUID(), title: "운동 루틴", progress: 0.80),
-                FriendListing(id: UUID(), title: "독서 목표", progress: 0.45),
-            ]
+            sparklineData: [1000, 1050, 1030, 1080, 1120, 1100, 1150, 1180, 1200],
+            priceHistory: generateSamplePriceHistory(basePrice: 1200),
+            sharesOutstanding: 8,
+            tradingVolume: 15600,
+            todayRecord: DailyRecord(
+                date: Date(),
+                todoItems: [
+                    TodoItem(title: "알고리즘 3문제 풀기", isCompleted: true),
+                    TodoItem(title: "운동 30분", isCompleted: true),
+                    TodoItem(title: "독서 1시간", isCompleted: false),
+                    TodoItem(title: "코딩 프로젝트 진행", isCompleted: false),
+                ],
+                isListed: true
+            ),
+            dailyRecords: generateSampleDailyRecords()
         ),
         Friend(
             id: UUID(),
             name: "이영희",
             ticker: "YOUNG",
-            currentPrice: 8900,
+            currentPrice: 890,
             change: -1.2,
             bio: "디자이너 겸 프론트엔드 개발자",
             avatarColor: .pink,
-            sparklineData: [100, 98, 102, 97, 95, 93, 96, 94, 92, 90],
-            skills: ["Figma", "UI/UX", "CSS"],
-            trustScore: 88,
-            listings: [
-                FriendListing(id: UUID(), title: "포트폴리오 리뉴얼", progress: 0.30),
-            ]
+            sparklineData: [1000, 980, 960, 940, 920, 910, 900, 890],
+            priceHistory: generateSamplePriceHistory(basePrice: 890),
+            sharesOutstanding: 12,
+            tradingVolume: 8900,
+            todayRecord: DailyRecord(
+                date: Date(),
+                todoItems: [
+                    TodoItem(title: "포트폴리오 리뉴얼", isCompleted: false),
+                    TodoItem(title: "UI/UX 스터디", isCompleted: true),
+                    TodoItem(title: "피그마 작업", isCompleted: false),
+                    TodoItem(title: "운동하기", isCompleted: false),
+                ],
+                isListed: true
+            ),
+            dailyRecords: generateSampleDailyRecords()
         ),
         Friend(
             id: UUID(),
             name: "박지민",
             ticker: "JIMIN",
-            currentPrice: 22000,
+            currentPrice: 1500,
             change: 7.8,
             bio: "AI 연구원, 논문 마스터",
             avatarColor: .orange,
-            sparklineData: [100, 103, 107, 110, 108, 115, 120, 125, 128, 130],
-            skills: ["ML", "PyTorch", "논문"],
-            trustScore: 92,
-            listings: [
-                FriendListing(id: UUID(), title: "논문 작성", progress: 0.65),
-                FriendListing(id: UUID(), title: "캐글 대회 참가", progress: 0.20),
-            ]
+            sparklineData: [1000, 1100, 1200, 1150, 1300, 1400, 1500],
+            priceHistory: generateSamplePriceHistory(basePrice: 1500),
+            sharesOutstanding: 18,
+            tradingVolume: 42000,
+            todayRecord: DailyRecord(
+                date: Date(),
+                todoItems: [
+                    TodoItem(title: "논문 리뷰", isCompleted: true),
+                    TodoItem(title: "실험 코드 작성", isCompleted: true),
+                    TodoItem(title: "세미나 발표 준비", isCompleted: true),
+                    TodoItem(title: "운동 1시간", isCompleted: false),
+                    TodoItem(title: "영어 공부", isCompleted: true),
+                ],
+                isListed: true
+            ),
+            dailyRecords: generateSampleDailyRecords()
         ),
         Friend(
             id: UUID(),
             name: "최수진",
             ticker: "SUJIN",
-            currentPrice: 12500,
+            currentPrice: 1100,
             change: 0.5,
             bio: "백엔드 엔지니어, 클라우드 전문가",
             avatarColor: .green,
-            sparklineData: [100, 101, 99, 102, 100, 103, 101, 104, 102, 103],
-            skills: ["AWS", "Docker", "Go"],
-            trustScore: 90,
-            listings: [
-                FriendListing(id: UUID(), title: "AWS 자격증 취득", progress: 0.55),
-            ]
+            sparklineData: [1000, 1010, 990, 1020, 1000, 1030, 1010, 1040, 1100],
+            priceHistory: generateSamplePriceHistory(basePrice: 1100),
+            sharesOutstanding: 5,
+            tradingVolume: 5500,
+            todayRecord: DailyRecord(
+                date: Date(),
+                todoItems: [
+                    TodoItem(title: "AWS 자격증 공부", isCompleted: true),
+                    TodoItem(title: "Docker 실습", isCompleted: true),
+                    TodoItem(title: "Go 언어 학습", isCompleted: true),
+                    TodoItem(title: "러닝 5km", isCompleted: true),
+                ],
+                isListed: true
+            ),
+            dailyRecords: generateSampleDailyRecords()
         ),
         Friend(
             id: UUID(),
             name: "정민호",
             ticker: "MINHO",
-            currentPrice: 31000,
-            change: -2.3,
+            currentPrice: 750,
+            change: -5.3,
             bio: "창업가, 스타트업 대표",
             avatarColor: .purple,
-            sparklineData: [110, 108, 112, 107, 105, 103, 108, 106, 104, 102],
-            skills: ["경영", "마케팅", "투자"],
-            trustScore: 85,
-            listings: [
-                FriendListing(id: UUID(), title: "투자 유치", progress: 0.40),
-                FriendListing(id: UUID(), title: "MVP 출시", progress: 0.70),
-                FriendListing(id: UUID(), title: "팀 빌딩", progress: 0.90),
-            ]
-        ),
-    ]
-}
-
-// MARK: - ListingCategory
-enum ListingCategory: String, CaseIterable {
-    case project = "프로젝트"
-    case study = "학습"
-    case exercise = "운동"
-    case hobby = "취미"
-    case social = "사교"
-
-    var icon: String {
-        switch self {
-        case .project: return "hammer.fill"
-        case .study: return "book.fill"
-        case .exercise: return "figure.run"
-        case .hobby: return "paintbrush.fill"
-        case .social: return "person.2.fill"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .project: return .blue
-        case .study: return .green
-        case .exercise: return .orange
-        case .hobby: return .purple
-        case .social: return .pink
-        }
-    }
-}
-
-// MARK: - Listing
-struct Listing: Identifiable {
-    let id: UUID
-    var title: String
-    var category: ListingCategory
-    var initialPrice: Double
-    var currentPrice: Double
-    var change: Double
-    var progress: Double
-    var deadline: Date
-    var isActive: Bool
-
-    static let sampleData: [Listing] = [
-        Listing(
-            id: UUID(),
-            title: "iOS 앱 출시하기",
-            category: .project,
-            initialPrice: 10000,
-            currentPrice: 15200,
-            change: 5.2,
-            progress: 0.65,
-            deadline: Date().addingTimeInterval(86400 * 14),
-            isActive: true
-        ),
-        Listing(
-            id: UUID(),
-            title: "알고리즘 100문제 풀기",
-            category: .study,
-            initialPrice: 8000,
-            currentPrice: 9500,
-            change: 1.8,
-            progress: 0.42,
-            deadline: Date().addingTimeInterval(86400 * 30),
-            isActive: true
-        ),
-        Listing(
-            id: UUID(),
-            title: "매일 5km 달리기",
-            category: .exercise,
-            initialPrice: 5000,
-            currentPrice: 7200,
-            change: 4.4,
-            progress: 0.8,
-            deadline: Date().addingTimeInterval(86400 * 7),
-            isActive: true
+            sparklineData: [1000, 950, 900, 870, 830, 800, 780, 750],
+            priceHistory: generateSamplePriceHistory(basePrice: 750),
+            sharesOutstanding: 20,
+            tradingVolume: 22500,
+            todayRecord: DailyRecord(
+                date: Date(),
+                todoItems: [
+                    TodoItem(title: "투자 미팅", isCompleted: false),
+                    TodoItem(title: "팀 회의", isCompleted: true),
+                    TodoItem(title: "사업계획서 수정", isCompleted: false),
+                    TodoItem(title: "운동", isCompleted: false),
+                ],
+                isListed: true
+            ),
+            dailyRecords: generateSampleDailyRecords()
         ),
     ]
 }
@@ -418,13 +478,13 @@ struct NewsPost: Identifiable, Hashable {
             author: "박지민",
             authorTicker: "JIMIN",
             avatarColor: .orange,
-            title: "요즘 AI 관련 상장 많이 하시나요?",
-            content: "AI 프로젝트 상장이 요즘 대세인 것 같은데, 다들 어떤 카테고리로 상장하고 계신가요? 저는 논문 작성 위주로 하고 있는데 수익률이 괜찮네요.",
+            title: "요즘 AI 관련 투두 많이 하시나요?",
+            content: "AI 프로젝트 관련 투두 작성이 요즘 대세인 것 같은데, 다들 어떤 식으로 하고 계신가요?",
             category: .discussion,
             likes: 12,
             comments: [
-                NewsComment(id: UUID(), author: "김철수", content: "저도 AI 쪽 상장 준비 중이에요!", timestamp: Date().addingTimeInterval(-1800)),
-                NewsComment(id: UUID(), author: "최수진", content: "프로젝트 카테고리가 수익률이 제일 높은 것 같아요", timestamp: Date().addingTimeInterval(-900)),
+                NewsComment(id: UUID(), author: "김철수", content: "저도 AI 쪽 투두 위주로 해요!", timestamp: Date().addingTimeInterval(-1800)),
+                NewsComment(id: UUID(), author: "최수진", content: "꾸준히 하면 주가 잘 오르더라구요", timestamp: Date().addingTimeInterval(-900)),
             ],
             timestamp: Date().addingTimeInterval(-600),
             isAnonymous: false
@@ -435,11 +495,11 @@ struct NewsPost: Identifiable, Hashable {
             authorTicker: "CHUL",
             avatarColor: .blue,
             title: "정민호 주가 왜 이렇게 떨어지나요?",
-            content: "정민호 주식 보유하고 있는데 계속 하락 중이네요. 투자 유치 상장 진행 상황 아시는 분?",
+            content: "정민호 주식 보유하고 있는데 계속 하락 중이네요. 투두 완성률이 낮은 건지...",
             category: .analysis,
             likes: 8,
             comments: [
-                NewsComment(id: UUID(), author: "익명", content: "마감일이 가까운데 진행률이 낮아서 그런 듯", timestamp: Date().addingTimeInterval(-3000)),
+                NewsComment(id: UUID(), author: "익명", content: "투두 완성률 25% 미만이래요", timestamp: Date().addingTimeInterval(-3000)),
             ],
             timestamp: Date().addingTimeInterval(-3600),
             isAnonymous: false
@@ -449,14 +509,13 @@ struct NewsPost: Identifiable, Hashable {
             author: "최수진",
             authorTicker: "SUJIN",
             avatarColor: .green,
-            title: "암시장에서 시간 정지 스킬 살 가치가 있나요?",
-            content: "50000P나 하는데... 마감일 연장이 그 정도 가치가 있을까요? 사보신 분 후기 부탁드립니다.",
+            title: "투두 100% 달성 꿀팁 공유",
+            content: "매일 달성 가능한 작은 목표 4개로 시작하세요. 무리하지 않는 게 핵심입니다!",
             category: .tip,
             likes: 15,
             comments: [
-                NewsComment(id: UUID(), author: "박지민", content: "마감 직전에 쓰면 인생템이에요", timestamp: Date().addingTimeInterval(-5400)),
-                NewsComment(id: UUID(), author: "정민호", content: "차라리 더블 부스트가 가성비 좋아요", timestamp: Date().addingTimeInterval(-4800)),
-                NewsComment(id: UUID(), author: "이영희", content: "저는 3개 비축해놨어요 ㅋㅋ", timestamp: Date().addingTimeInterval(-4200)),
+                NewsComment(id: UUID(), author: "박지민", content: "좋은 팁이네요!", timestamp: Date().addingTimeInterval(-5400)),
+                NewsComment(id: UUID(), author: "정민호", content: "저도 따라해볼게요", timestamp: Date().addingTimeInterval(-4800)),
             ],
             timestamp: Date().addingTimeInterval(-7200),
             isAnonymous: false
@@ -467,12 +526,11 @@ struct NewsPost: Identifiable, Hashable {
             authorTicker: "YOUNG",
             avatarColor: .pink,
             title: "카지노에서 30만P 날렸습니다...",
-            content: "룰렛에서 연속으로 잃었네요 ㅠㅠ 카지노 하지 마세요 진심으로... 도박 취소권 없었으면 더 잃을 뻔",
+            content: "룰렛에서 연속으로 잃었네요... 카지노 하지 마세요 진심으로...",
             category: .free,
             likes: 23,
             comments: [
                 NewsComment(id: UUID(), author: "김철수", content: "ㅋㅋㅋㅋ 저도요...", timestamp: Date().addingTimeInterval(-10800)),
-                NewsComment(id: UUID(), author: "익명", content: "카지노는 집이 항상 이기는 법", timestamp: Date().addingTimeInterval(-9000)),
             ],
             timestamp: Date().addingTimeInterval(-14400),
             isAnonymous: false
@@ -483,7 +541,7 @@ struct NewsPost: Identifiable, Hashable {
             authorTicker: "MINHO",
             avatarColor: .purple,
             title: "이번 주 수익률 TOP 3 예측",
-            content: "박지민: 논문 마감 임박 + 높은 진행률로 급등 예상\n김철수: 꾸준한 상승세\n최수진: AWS 자격증 곧 취득할 듯",
+            content: "박지민: 투두 완성률 높아서 급등 예상\n김철수: 꾸준한 상승세\n최수진: 100% 달성 자주 함",
             category: .analysis,
             likes: 18,
             comments: [],

@@ -62,7 +62,7 @@ struct LoginView: View {
                             .font(.system(size: 32, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                         
-                        Text("친구를 주식처럼, 할 일을 상장처럼")
+                        Text("친구에게 투자하고, 할 일로 주가를 올려라")
                             .font(.system(size: 15))
                             .foregroundStyle(.white.opacity(0.6))
                     }

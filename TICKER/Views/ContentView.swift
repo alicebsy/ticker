@@ -3,7 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
-    
+
     // 테마 설정을 저장 (기본값 다크모드)
     @AppStorage("isDarkMode") private var isDarkMode = true
 
@@ -11,7 +11,6 @@ struct ContentView: View {
         Group {
             if appState.isLoggedIn {
                 NavigationSplitView(columnVisibility: $columnVisibility) {
-                    // SidebarView에 테마 상태를 바인딩으로 전달
                     SidebarView(isDarkMode: $isDarkMode)
                         .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
                 } detail: {
@@ -23,7 +22,6 @@ struct ContentView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: appState.isLoggedIn)
-        // 사용자의 선택에 따라 다크/라이트 모드 적용
         .preferredColorScheme(isDarkMode ? .dark : .light)
     }
 }
@@ -31,7 +29,7 @@ struct ContentView: View {
 // MARK: - Sidebar View
 struct SidebarView: View {
     @EnvironmentObject var appState: AppState
-    @Binding var isDarkMode: Bool // ContentView와 동기화되는 변수
+    @Binding var isDarkMode: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -52,9 +50,10 @@ struct SidebarView: View {
                 }
 
                 Section {
+                    // 총 자산
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("내 자산")
+                            Text("총 자산")
                                 .font(.caption)
                                 .foregroundStyle(AppTheme.secondaryText)
                             Text(formatCurrency(appState.totalAssets))
@@ -63,9 +62,22 @@ struct SidebarView: View {
 
                         Spacer()
 
-                        PriceChangeBadge(change: appState.dailyChange)
+                        if appState.dailyChange != 0 {
+                            PriceChangeBadge(change: appState.dailyChange)
+                        }
                     }
                     .padding(.vertical, 4)
+
+                    // 장 상태
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(appState.isMarketOpen ? Color.green : Color.orange)
+                            .frame(width: 6, height: 6)
+                        Text(appState.marketStatusText)
+                            .font(.caption)
+                            .foregroundStyle(appState.isMarketOpen ? AppTheme.gain : .orange)
+                    }
+                    .padding(.vertical, 2)
                 } header: {
                     Text("요약")
                 }
@@ -151,11 +163,11 @@ struct SidebarView: View {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.maximumFractionDigits = 0
-        return "₩" + (formatter.string(from: NSNumber(value: value)) ?? "0")
+        return (formatter.string(from: NSNumber(value: value)) ?? "0") + "원"
     }
 }
 
-// MARK: - Sidebar Item (기존 코드와 동일)
+// MARK: - Sidebar Item
 struct SidebarItem: View {
     let tab: SidebarTab
 
@@ -169,7 +181,7 @@ struct SidebarItem: View {
     }
 }
 
-// MARK: - Detail View (기존 코드와 동일)
+// MARK: - Detail View
 struct DetailView: View {
     @EnvironmentObject var appState: AppState
 
@@ -197,7 +209,7 @@ struct DetailView: View {
     }
 }
 
-// MARK: - Settings View (기존 코드와 동일)
+// MARK: - Settings View
 struct SettingsView: View {
     var body: some View {
         TabView {
