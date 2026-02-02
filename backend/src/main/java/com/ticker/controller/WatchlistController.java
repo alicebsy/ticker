@@ -41,14 +41,34 @@ public class WatchlistController {
     }
 
     /**
-     * 친구 추가 요청
+     * 친구 추가 요청 (friendUserId 또는 friendCode로 대상 지정)
      */
     @PostMapping("/friends")
     public ResponseEntity<Void> addFriend(
             @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId,
             @Valid @RequestBody FriendRequest request) {
-        watchlistService.addFriendRequest(userId, request.getFriendUserId());
+        watchlistService.addFriendRequest(userId, request);
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 내 친구 코드 조회 (없으면 자동 발급)
+     */
+    @GetMapping("/my-friend-code")
+    public ResponseEntity<java.util.Map<String, String>> getMyFriendCode(
+            @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId) {
+        String code = watchlistService.getOrCreateFriendCode(userId);
+        return ResponseEntity.ok(java.util.Map.of("friendCode", code));
+    }
+
+    /**
+     * 친구 코드 재발급 (기존 코드 무효화)
+     */
+    @PostMapping("/regenerate-friend-code")
+    public ResponseEntity<java.util.Map<String, String>> regenerateFriendCode(
+            @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId) {
+        String code = watchlistService.regenerateFriendCode(userId);
+        return ResponseEntity.ok(java.util.Map.of("friendCode", code));
     }
 
     /**

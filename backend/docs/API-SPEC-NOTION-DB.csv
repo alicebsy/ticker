@@ -1,0 +1,28 @@
+﻿구분,메서드,경로,설명,요청,응답
+인증,POST,/api/auth/signup,일반 회원가입,SignupRequest,"{ id, loginId, name, message }"
+인증,POST,/api/auth/login,일반 로그인,LoginRequest,"{ id, loginId, name, profileImageUrl, cashBalance, marketCap, totalAssets, message }"
+인증,GET,/api/auth/me,로그인된 사용자 정보 (OAuth),-,"{ id, name, loginId, profileImageUrl, oauthProvider }"
+인증,GET,/api/auth/kakao/login-url,카카오 로그인 URL 안내,-,"{ url, description }"
+인증,GET,/oauth2/authorization/kakao,카카오 로그인 (브라우저 리다이렉트),-,카카오 로그인 페이지로 이동
+포트폴리오,GET,/api/portfolio,내 포트폴리오 조회,-,"총 자산, 보유 자산, 내 가치, 투자 중 종목, 보유 스킬, 상장 폐지 내역"
+상장,GET,/api/listing,상장 화면 (차트 + 상장 중 종목),"period (query): 1D, 7D, 1M",ListingResponse
+상장,POST,/api/listing,신규 상장 (할 일 등록),ListingRequest,Todo
+상장,POST,/api/listing/{todoId}/complete,할 일 완료 (매도/상장 폐지),-,200 OK
+상장,PATCH,/api/listing/{todoId}/progress,진행률 업데이트,progress (query): 0~100,200 OK
+투자,GET,/api/investments,보유 종목 목록,-,HeldStocksResponse
+투자,POST,/api/investments/buy,매수,InvestRequest,Investment
+투자,POST,/api/investments/{investmentId}/sell,매도,"quantity (query, 선택): 판매 수량",200 OK
+관심종목,GET,/api/watchlist,관심 종목 화면 (대기 요청 + 관심 종목 그리드),-,WatchlistResponse
+관심종목,GET,/api/watchlist/friends,친구 목록,-,User[]
+관심종목,POST,/api/watchlist/friends,친구 추가 요청,FriendRequest,200 OK
+관심종목,POST,/api/watchlist/friends/{requesterId}/accept,친구 요청 수락,-,200 OK
+관심종목,POST,/api/watchlist/friends/{requesterId}/reject,친구 요청 거절,-,200 OK
+관심종목,POST,/api/watchlist/{watchedUserId},관심 종목에 추가,-,200 OK
+암시장,GET,/api/darkmarket,"암시장 화면 (아이템 목록, 오늘의 특가)",-,DarkMarketResponse
+암시장,POST,/api/darkmarket/purchase,아이템 구매,PurchaseRequest,200 OK
+카지노,GET,/api/casino,카지노 화면 (베팅 내역),-,CasinoResponse
+카지노,POST,/api/casino/bets,새 베팅,BetRequest,Bet
+사용자,GET,/api/users/search,사용자 검색,q (query): 검색어,User[]
+사용자,GET,/api/users/{userId},사용자 프로필,-,User
+할일,GET,/api/todos,상장 중인 할 일 목록,"ownerId (query, 선택): 소유자 ID",Todo[]
+할일,GET,/api/todos/{todoId},할 일 상세,-,Todo

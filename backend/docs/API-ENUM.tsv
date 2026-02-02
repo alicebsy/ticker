@@ -1,0 +1,5 @@
+enum	값
+Difficulty	EASY, NORMAL, HARD
+Visibility	FRIENDS_ONLY, PUBLIC
+TodoStatus	LISTED, COMPLETED, DELISTED
+BetStatus	PENDING, WON, LOST

@@ -1,0 +1,4 @@
+API	필드	타입	필수	설명
+POST /api/casino/bets	todoId	long	○	베팅할 친구의 할 일 ID
+POST /api/casino/bets	amount	long	○	베팅 금액 (P)
+POST /api/casino/bets	predictSuccess	boolean	○	true: 성공 예측, false: 실패 예측

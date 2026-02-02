@@ -38,7 +38,9 @@ H2 Console: `http://localhost:8080/h2-console`
 ### 관심 종목 (Watchlist)
 - `GET /api/watchlist` - 관심 종목 화면 (대기 요청, 관심 종목 그리드)
 - `GET /api/watchlist/friends` - 친구 목록
-- `POST /api/watchlist/friends` - 친구 추가 요청
+- `GET /api/watchlist/my-friend-code` - 내 친구 코드 조회 (없으면 자동 발급)
+- `POST /api/watchlist/regenerate-friend-code` - 친구 코드 재발급
+- `POST /api/watchlist/friends` - 친구 추가 요청 (body: `friendUserId` 또는 `friendCode`)
 - `POST /api/watchlist/friends/{requesterId}/accept` - 요청 수락
 - `POST /api/watchlist/friends/{requesterId}/reject` - 요청 거절
 - `POST /api/watchlist/{watchedUserId}` - 관심 종목에 추가
@@ -68,3 +70,69 @@ H2 Console: `http://localhost:8080/h2-console`
    - `KAKAO_REST_API_KEY`: REST API 키
    - `KAKAO_CLIENT_SECRET`: 보안키 (활성화 시)
    - `OAUTH_REDIRECT_URI`: 로그인 후 이동할 URL (예: `ticker://oauth` for Swift)
+
+---
+
+## 백엔드 테스트 방법
+
+### 1. 서버 실행
+
+**필수:** MySQL이 `localhost:3306`에서 실행 중이어야 합니다. (또는 `application.yml`에서 URL/계정 수정)
+
+```bash
+cd backend
+./gradlew bootRun
+```
+
+정상 기동 시 터미널에 `Started TickerApplication` 이 보이고, 포트는 기본 **8080** 입니다.
+
+### 2. Swagger UI로 테스트 (추천)
+
+브라우저에서 아래 주소로 접속하면 API 목록과 "Try it out"으로 요청을 보낼 수 있습니다.
+
+- **Swagger UI:** http://localhost:8080/swagger-ui.html  
+- **API 스펙(JSON):** http://localhost:8080/v3/api-docs
+
+대부분 API는 인증 없이 호출 가능하고, `X-User-Id` 헤더로 사용자 ID를 넘깁니다. (Swagger에서 헤더 추가 가능)
+
+### 3. curl로 빠르게 확인
+
+서버가 떠 있는 상태에서 터미널에서 실행해 보세요.
+
+```bash
+# 기본 헤더 (사용자 ID=1 로 테스트)
+H="X-User-Id: 1"
+BASE="http://localhost:8080"
+
+# 헬스 체크 (서버 살아있는지)
+curl -s -o /dev/null -w "%{http_code}" $BASE/api/portfolio -H "$H"
+
+# 내 친구 코드 조회 (없으면 자동 발급)
+curl -s $BASE/api/watchlist/my-friend-code -H "$H"
+
+# 관심 종목 화면 (대기 요청, 관심 종목)
+curl -s $BASE/api/watchlist -H "$H"
+
+# 친구 추가 (친구 코드로)
+# curl -X POST $BASE/api/watchlist/friends -H "$H" -H "Content-Type: application/json" -d '{"friendCode":"상대방친구코드"}'
+
+# 친구 추가 (사용자 ID로)
+# curl -X POST $BASE/api/watchlist/friends -H "$H" -H "Content-Type: application/json" -d '{"friendUserId":2}'
+
+# 회원가입 테스트
+# curl -X POST $BASE/api/auth/signup -H "Content-Type: application/json" -d '{"loginId":"test1","password":"1234","name":"테스트"}'
+
+# 로그인 테스트
+# curl -X POST $BASE/api/auth/login -H "Content-Type: application/json" -d '{"loginId":"test1","password":"1234"}'
+```
+
+### 4. DataLoader로 DB에 사용자 있는 경우
+
+`userRepository.count() == 0` 일 때만 DataLoader가 샘플 유저(kim, lee, park, choi)를 넣습니다.  
+처음 한 번은 DB를 비우고 서버를 켜면 1~4번 사용자와 친구 코드가 생깁니다.
+
+- 사용자 1(kim)의 친구 코드: `GET /api/watchlist/my-friend-code` (X-User-Id: 1)
+- 사용자 2(lee)를 사용자 1이 친구 코드로 추가:  
+  `POST /api/watchlist/friends` body: `{"friendCode":"2번유저의친구코드"}` + X-User-Id: 1
+
+이렇게 하면 서버 실행 → Swagger 또는 curl로 백엔드 동작을 확인할 수 있습니다.

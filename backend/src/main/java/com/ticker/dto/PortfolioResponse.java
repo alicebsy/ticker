@@ -17,17 +17,20 @@ import java.util.List;
 @Builder
 public class PortfolioResponse {
 
-    /** 총 자산 (P) */
+    /** 총 자산 (P) = 보유 자산 + 내 가치 */
     private Long totalAssets;
+
+    /** 보유 자산 (P) - 투자·배팅에 사용 가능 */
+    private Long cashBalance;
+
+    /** 내 가치 (P) - 시가총액, 랭킹용, 현금화 불가 */
+    private Long marketCap;
 
     /** 일일 변동률 (%) - "+3.20%" 형태 */
     private String dailyChangePercent;
 
     /** 투자 중 금액 (P) */
     private Long investingAmount;
-
-    /** 보유 현금 (P) */
-    private Long cashBalance;
 
     /** 투자 중인 종목 목록 */
     private List<InvestmentSummaryDto> investments;

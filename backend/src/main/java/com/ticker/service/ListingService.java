@@ -28,21 +28,30 @@ public class ListingService {
 
     /**
      * 신규 상장 - 할 일 등록
+     * 내 몸값 비례형: 공모가 = 기본 난이도 점수 × (내 주가 / 100)
+     * - 신용 불량(주가 50원) → 저평가
+     * - 성실한 유저(주가 200원) → 프리미엄
      */
     @Transactional
     public Todo createTodo(Long userId, ListingRequest request) {
         User owner = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
 
+        Difficulty difficulty = request.getDifficulty() != null ? request.getDifficulty() : Difficulty.NORMAL;
+        // 공모가: 명시된 값이 있으면 사용, 없으면 난이도 × (내 주가/100) 적용
+        long ipoPrice = request.getRewardPoints() != null
+                ? request.getRewardPoints()
+                : difficulty.calculateIpoPrice(owner.getStockPrice());
+
         Todo todo = Todo.builder()
                 .owner(owner)
                 .name(request.getName())
                 .deadline(request.getDeadline())
-                .rewardPoints(request.getRewardPoints() != null ? request.getRewardPoints() : 500L)
-                .difficulty(request.getDifficulty() != null ? request.getDifficulty() : Difficulty.NORMAL)
+                .rewardPoints(ipoPrice)
+                .difficulty(difficulty)
                 .visibility(request.getVisibility() != null ? request.getVisibility() : Visibility.FRIENDS_ONLY)
                 .progress(0)
-                .currentPrice(request.getRewardPoints() != null ? request.getRewardPoints() : 500L)
+                .currentPrice(ipoPrice)
                 .status(TodoStatus.LISTED)
                 .build();
 

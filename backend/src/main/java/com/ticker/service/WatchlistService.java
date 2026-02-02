@@ -1,5 +1,6 @@
 package com.ticker.service;
 
+import com.ticker.dto.FriendRequest;
 import com.ticker.dto.WatchlistResponse;
 import com.ticker.model.Friendship;
 import com.ticker.model.User;
@@ -7,6 +8,7 @@ import com.ticker.model.Watchlist;
 import com.ticker.repository.FriendshipRepository;
 import com.ticker.repository.UserRepository;
 import com.ticker.repository.WatchlistRepository;
+import com.ticker.util.FriendCodeGenerator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +28,7 @@ public class WatchlistService {
     private final WatchlistRepository watchlistRepository;
     private final FriendshipRepository friendshipRepository;
     private final UserRepository userRepository;
+    private final FriendCodeGenerator friendCodeGenerator;
 
     /**
      * 관심 종목 화면 데이터 조회
@@ -78,10 +81,22 @@ public class WatchlistService {
     }
 
     /**
-     * 친구 추가 요청
+     * 친구 추가 요청 (friendUserId 또는 friendCode 중 하나로 대상 지정)
      */
     @Transactional
-    public void addFriendRequest(Long requesterId, Long friendUserId) {
+    public void addFriendRequest(Long requesterId, FriendRequest request) {
+        Long friendUserId = resolveFriendUserId(request);
+        if (friendUserId == null) {
+            throw new IllegalArgumentException("친구 ID 또는 친구 코드를 입력하세요");
+        }
+        addFriendRequestById(requesterId, friendUserId);
+    }
+
+    /**
+     * 친구 ID로 친구 추가 요청 (내부용)
+     */
+    @Transactional
+    public void addFriendRequestById(Long requesterId, Long friendUserId) {
         if (requesterId.equals(friendUserId)) {
             throw new IllegalArgumentException("본인에게 친구 요청을 할 수 없습니다");
         }
@@ -101,6 +116,61 @@ public class WatchlistService {
                 .status(Friendship.FriendshipStatus.PENDING)
                 .build();
         friendshipRepository.save(friendship);
+    }
+
+    private Long resolveFriendUserId(FriendRequest request) {
+        if (request.getFriendUserId() != null) {
+            return request.getFriendUserId();
+        }
+        if (request.getFriendCode() != null && !request.getFriendCode().isBlank()) {
+            return userRepository.findByFriendCode(request.getFriendCode().trim().toUpperCase())
+                    .map(User::getId)
+                    .orElseThrow(() -> new IllegalArgumentException("해당 친구 코드의 사용자를 찾을 수 없습니다"));
+        }
+        return null;
+    }
+
+    /**
+     * 내 친구 코드 조회 (없으면 발급 후 반환)
+     */
+    @Transactional
+    public String getOrCreateFriendCode(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다"));
+        if (user.getFriendCode() != null && !user.getFriendCode().isBlank()) {
+            return user.getFriendCode();
+        }
+        String code = generateUniqueFriendCode();
+        user.setFriendCode(code);
+        userRepository.save(user);
+        return code;
+    }
+
+    /**
+     * 친구 코드 재발급 (기존 코드 무효화)
+     */
+    @Transactional
+    public String regenerateFriendCode(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다"));
+        String code = generateUniqueFriendCode();
+        user.setFriendCode(code);
+        userRepository.save(user);
+        return code;
+    }
+
+    /**
+     * 신규 사용자 생성 시 호출. 유일한 친구 코드 생성 (DB에 아직 저장하지 않음)
+     */
+    @Transactional(readOnly = true)
+    public String generateUniqueFriendCode() {
+        for (int i = 0; i < 100; i++) {
+            String code = friendCodeGenerator.generate();
+            if (!userRepository.existsByFriendCode(code)) {
+                return code;
+            }
+        }
+        throw new IllegalStateException("친구 코드 발급에 실패했습니다. 다시 시도해 주세요.");
     }
 
     /**

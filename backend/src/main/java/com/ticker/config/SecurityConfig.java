@@ -29,7 +29,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // OAuth2 로그인 엔드포인트
                         .requestMatchers("/login/**", "/oauth2/**").permitAll()
-                        // 인증 API
+                        // 인증 API (회원가입, 로그인은 모두 허용)
+                        .requestMatchers("/api/auth/signup", "/api/auth/login").permitAll()
                         .requestMatchers("/api/auth/kakao/login-url").permitAll()
                         .requestMatchers("/api/auth/me").authenticated()
                         // H2 콘솔 (개발용)

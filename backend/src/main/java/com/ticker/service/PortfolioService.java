@@ -83,9 +83,10 @@ public class PortfolioService {
 
         return PortfolioResponse.builder()
                 .totalAssets(user.getTotalAssets())
+                .cashBalance(user.getCashBalance())
+                .marketCap(user.getMarketCap())
                 .dailyChangePercent(dailyChange)
                 .investingAmount(investingAmount)
-                .cashBalance(user.getCashBalance())
                 .investments(investmentDtos)
                 .skills(skillDtos)
                 .delistedHistory(delistedDtos)

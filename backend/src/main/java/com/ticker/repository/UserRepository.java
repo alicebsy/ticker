@@ -14,5 +14,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByOauthProviderAndOauthId(String provider, String oauthId);
 
+    Optional<User> findByFriendCode(String friendCode);
+
     boolean existsByLoginId(String loginId);
+
+    boolean existsByFriendCode(String friendCode);
 }

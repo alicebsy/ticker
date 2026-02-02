@@ -39,18 +39,27 @@ public class User {
     /** OAuth 제공자 회원번호 */
     private String oauthId;
 
+    /** 친구 추가용 개별 인증 코드 (랜덤 발급, 서로 친구 추가 시 사용) */
+    @Column(unique = true)
+    private String friendCode;
+
     /** 프로필 이미지 URL */
     private String profileImageUrl;
 
-    /** 보유 현금 (P 포인트) - 투자하지 않은 자유 자금 */
+    /** 보유 자산 (P) - 투자·배팅에 사용 가능한 현금 (초기 10만원) */
     @Column(nullable = false)
     @Builder.Default
-    private Long cashBalance = 0L;
+    private Long cashBalance = 100_000L;
 
-    /** 총 자산 = 투자 중 금액 + 보유 현금 (계산 필드로도 사용) */
+    /** 내 가치 / 시가총액 (P) - 나한테 투자된 총액, 랭킹용, 현금화 불가 (초기 10만원) */
     @Column(nullable = false)
     @Builder.Default
-    private Long totalAssets = 0L;
+    private Long marketCap = 100_000L;
+
+    /** 총 자산 = 보유 자산 + 내 가치 (랭킹용) */
+    @Column(nullable = false)
+    @Builder.Default
+    private Long totalAssets = 200_000L;
 
     /** 내 주가 (해당 사용자의 할 일 완료율 등으로 계산되는 "가치") */
     @Column(nullable = false)

@@ -22,9 +22,8 @@ public class ListingRequest {
     @NotNull(message = "마감일을 입력하세요")
     private LocalDate deadline;
 
-    /** 공모가 (보상 포인트) - 기본 500P */
-    @NotNull(message = "보상 포인트를 입력하세요")
-    private Long rewardPoints = 500L;
+    /** 공모가 (보상 포인트) - 생략 시 난이도 × (내 주가/100) 자동 계산 */
+    private Long rewardPoints;
 
     /** 난이도 */
     private Difficulty difficulty = Difficulty.NORMAL;

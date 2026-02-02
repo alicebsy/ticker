@@ -2,6 +2,7 @@ package com.ticker.config;
 
 import com.ticker.model.*;
 import com.ticker.repository.*;
+import com.ticker.service.WatchlistService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
@@ -20,18 +21,21 @@ public class DataLoader implements CommandLineRunner {
     private final UserRepository userRepository;
     private final MarketItemRepository marketItemRepository;
     private final StockPriceHistoryRepository stockPriceHistoryRepository;
+    private final WatchlistService watchlistService;
 
     @Override
     public void run(String... args) {
         if (userRepository.count() > 0) return;
 
-        // 샘플 사용자 생성
+        // 샘플 사용자 생성 (보유 자산·내 가치 초기값 10만원, 친구 코드 발급)
         User user1 = User.builder()
                 .name("김민수")
                 .loginId("kim")
                 .password("1234")
-                .cashBalance(125_000L)
-                .totalAssets(125_000L)
+                .friendCode(watchlistService.generateUniqueFriendCode())
+                .cashBalance(100_000L)
+                .marketCap(100_000L)
+                .totalAssets(200_000L)
                 .stockPrice(130L)
                 .consecutiveUpDays(5)
                 .build();
@@ -39,16 +43,20 @@ public class DataLoader implements CommandLineRunner {
                 .name("이지은")
                 .loginId("lee")
                 .password("1234")
-                .cashBalance(81_700L)
-                .totalAssets(81_700L)
+                .friendCode(watchlistService.generateUniqueFriendCode())
+                .cashBalance(100_000L)
+                .marketCap(100_000L)
+                .totalAssets(200_000L)
                 .stockPrice(100L)
                 .build();
         User user3 = User.builder()
                 .name("박준혁")
                 .loginId("park")
                 .password("1234")
-                .cashBalance(50_000L)
-                .totalAssets(50_000L)
+                .friendCode(watchlistService.generateUniqueFriendCode())
+                .cashBalance(100_000L)
+                .marketCap(100_000L)
+                .totalAssets(200_000L)
                 .stockPrice(150L)
                 .consecutiveUpDays(3)
                 .build();
@@ -56,8 +64,10 @@ public class DataLoader implements CommandLineRunner {
                 .name("최서연")
                 .loginId("choi")
                 .password("1234")
-                .cashBalance(30_000L)
-                .totalAssets(30_000L)
+                .friendCode(watchlistService.generateUniqueFriendCode())
+                .cashBalance(100_000L)
+                .marketCap(100_000L)
+                .totalAssets(200_000L)
                 .stockPrice(110L)
                 .build();
 

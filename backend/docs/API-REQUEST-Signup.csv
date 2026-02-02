@@ -1,0 +1,5 @@
+﻿API,필드,타입,필수,설명
+POST /api/auth/signup,loginId,string,○,로그인 ID (3~50자)
+POST /api/auth/signup,password,string,○,비밀번호 (4자 이상)
+POST /api/auth/signup,name,string,○,사용자 이름 (닉네임)
+POST /api/auth/signup,profileImageUrl,string,×,프로필 이미지 URL

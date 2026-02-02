@@ -2,6 +2,7 @@ package com.ticker.service;
 
 import com.ticker.model.User;
 import com.ticker.repository.UserRepository;
+import com.ticker.service.WatchlistService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
@@ -10,7 +11,6 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * 카카오 OAuth2 사용자 정보 로드 및 User 엔티티 생성/조회
@@ -20,6 +20,7 @@ import java.util.Optional;
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     private final UserRepository userRepository;
+    private final WatchlistService watchlistService;
 
     @Override
     public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
@@ -56,9 +57,11 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                 .oauthProvider("kakao")
                 .oauthId(oauthId)
                 .profileImageUrl(profileImageUrl)
-                .cashBalance(100_000L)  // 신규 가입 보너스
-                .totalAssets(100_000L)
-                .stockPrice(100L)
+                .friendCode(watchlistService.generateUniqueFriendCode())
+                .cashBalance(100_000L)   // 보유 자산 초기 10만원
+                .marketCap(100_000L)     // 내 가치 초기 10만원
+                .totalAssets(200_000L)   // 총 자산 = 보유 + 내 가치
+                .stockPrice(1000L)       // 1주당 1000원
                 .build();
         return userRepository.save(user);
     }
