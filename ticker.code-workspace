@@ -1,0 +1,10 @@
+{
+  "folders": [
+    { "path": ".", "name": "ticker" },
+    { "path": "backend", "name": "backend (Gradle)" }
+  ],
+  "settings": {
+    "java.configuration.updateBuildConfiguration": "automatic",
+    "java.import.gradle.enabled": true
+  }
+}
