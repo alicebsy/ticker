@@ -1,0 +1,6 @@
+API	필드	타입	필수	설명
+POST /api/listing	name	string	○	종목명 (할 일)
+POST /api/listing	deadline	date	○	마감일 (yyyy-MM-dd)
+POST /api/listing	rewardPoints	long	×	공모가 (생략 시 난이도×주가/100 자동 계산)
+POST /api/listing	difficulty	enum	×	EASY, NORMAL, HARD (기본: NORMAL)
+POST /api/listing	visibility	enum	×	FRIENDS_ONLY, PUBLIC (기본: FRIENDS_ONLY)

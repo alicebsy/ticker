@@ -1,0 +1,2 @@
+API	필드	타입	필수	설명
+POST /api/watchlist/friends	friendUserId	long	○	추가할 친구의 사용자 ID
