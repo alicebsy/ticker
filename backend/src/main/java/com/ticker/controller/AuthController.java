@@ -59,6 +59,10 @@ public class AuthController {
                 "id", saved.getId(),
                 "loginId", saved.getLoginId(),
                 "name", saved.getName(),
+                "profileImageUrl", saved.getProfileImageUrl() != null ? saved.getProfileImageUrl() : "",
+                "cashBalance", saved.getCashBalance(),
+                "marketCap", saved.getMarketCap(),
+                "totalAssets", saved.getTotalAssets(),
                 "message", "회원가입이 완료되었습니다"
         ));
     }

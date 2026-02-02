@@ -30,32 +30,63 @@ class AppState: ObservableObject {
     @Published var visibility: PortfolioVisibility = .publicVisible
 
     // 경제 시스템
-    @Published var cash: Double = 100_000        // 보유 현금 (초기 100,000원)
+    @Published var cash: Int = 100_000 // Changed to Int to match User model
     @Published var dailyChange: Double = 0.0
 
+    // MARK: - Auth Actions
+    @MainActor
+    func signup(request: SignupRequest) async throws {
+        let response = try await NetworkManager.shared.signup(request: request)
+        self.handleAuthResponse(response)
+    }
+
+    @MainActor
+    func login(request: LoginRequest) async throws {
+        let response = try await NetworkManager.shared.login(request: request)
+        self.handleAuthResponse(response)
+    }
+
+    private func handleAuthResponse(_ response: LoginResponse) {
+        self.currentUser = User(
+            id: response.id,
+            name: response.name,
+            loginId: response.loginId,
+            profileImage: response.profileImageUrl,
+            loginMethod: .guest, // Defaulting for now
+            cashBalance: response.cashBalance,
+            marketCap: response.marketCap,
+            totalAssets: response.totalAssets,
+            stockPrice: 1000 // Default or derived
+        )
+        self.cash = response.cashBalance
+        self.isLoggedIn = true
+    }
+
     // 내 주식 정보 (유저 = 기업)
-    @Published var userStockPrice: Double = 1_000  // 초기 주당 1,000원 (100주 × 1,000 = 시가총액 100,000원)
+    @Published var userStockPrice: Double = 1_000
     let myTotalShares: Int = 100
     let myFounderShares: Int = 70
     let myFloatShares: Int = 30
-    @Published var mySharesOutstanding: Int = 0    // 다른 사람이 매수한 내 주식 수
+    @Published var mySharesOutstanding: Int = 0
     @Published var myTradingVolume: Double = 0
 
     // 내 투두 / 상장 기록
     @Published var myTodayRecord: DailyRecord? = nil
-    @Published var myDailyRecords: [DailyRecord] = DailyRecord.sampleRecords()
-    @Published var myPriceHistory: [PriceHistoryPoint] = PriceHistoryPoint.sampleHistory(currentPrice: 1000)
+    @Published var myDailyRecords: [DailyRecord] = []
+    @Published var myPriceHistory: [PriceHistoryPoint] = Friend.generateSamplePriceHistory(basePrice: 1000)
     @Published var userStockHistory: [Double] = [
         700, 750, 800, 830, 870, 900, 920, 950, 980, 1000
     ]
 
     // 보유 종목 & 친구
-    @Published var holdings: [Holding] = Holding.sampleData
-    @Published var friends: [Friend] = Friend.sampleData
-    @Published var friendRequests: [FriendRequest] = [
-        FriendRequest(id: UUID(), name: "신유진", avatarColor: .gray, isSentByMe: true),
-        FriendRequest(id: UUID(), name: "임도현", avatarColor: .gray, isSentByMe: false),
-    ]
+    @Published var holdings: [Holding] = []
+    @Published var friends: [Friend] = Friend.sampleData // Keep friends for now so the market isn't empty?
+    // Wait, if friends are empty, the "All Stocks" view will be empty. The user might want to see stocks to buy.
+    // The "Holdings" (Invested Stocks) should be empty. "Friends" (Market items) should probably stay as sample data for now if there is no backend for fetching logic friends list yet.
+    // The user complained about "Invested Stocks" (holdings).
+    // So I will only clear 'holdings'.
+
+    @Published var friendRequests: [FriendRequest] = []
     @Published var myFriendCode: String = {
         let code = Int.random(in: 1000...9999)
         return "TICKER-\(String(format: "%04d", code))"
@@ -86,7 +117,7 @@ class AppState: ObservableObject {
     }
 
     var totalAssets: Double {
-        cash + (userStockPrice * Double(myFounderShares)) + totalInvestedInOthers
+        Double(cash) + (userStockPrice * Double(myFounderShares)) + totalInvestedInOthers
     }
 
     // MARK: - 장 운영 시간 (10시 ~ 24시)
@@ -104,13 +135,13 @@ class AppState: ObservableObject {
     @discardableResult
     func buyStock(friendName: String, quantity: Int, pricePerShare: Double) -> Bool {
         let totalCost = pricePerShare * Double(quantity)
-        guard cash >= totalCost else { return false }
+        guard cash >= Int(totalCost) else { return false }
         // 가용 주식 수 확인
         guard let friendIndex = friends.firstIndex(where: { $0.name == friendName }) else { return false }
         guard friends[friendIndex].availableShares >= quantity else { return false }
 
         // 현금 차감
-        cash -= totalCost
+        cash -= Int(totalCost)
 
         // 친구의 outstanding 증가 + 거래대금 추가
         friends[friendIndex].sharesOutstanding += quantity
@@ -160,7 +191,7 @@ class AppState: ObservableObject {
         }
 
         // 현금 추가
-        cash += totalRevenue
+        cash += Int(totalRevenue)
 
         // 친구의 outstanding 감소 + 거래대금 추가
         if let friendIndex = friends.firstIndex(where: { $0.name == friendName }) {
@@ -266,10 +297,9 @@ class AppState: ObservableObject {
     // MARK: - 스토어 구매
     @discardableResult
     func purchaseStoreItem(item: StoreItem) -> Bool {
-        let price = Double(item.price)
-        guard cash >= price else { return false }
+        guard cash >= item.price else { return false }
 
-        cash -= price
+        cash -= item.price
 
         if let existing = mySkills[item.name] {
             mySkills[item.name] = existing + 1
@@ -284,10 +314,9 @@ class AppState: ObservableObject {
     // MARK: - 카지노 베팅
     @discardableResult
     func placeBet(amount: Int, target: String, betType: BetType) -> Bool {
-        let betAmount = Double(amount)
-        guard cash >= betAmount else { return false }
+        guard cash >= amount else { return false }
 
-        cash -= betAmount
+        cash -= amount
 
         addActivity(type: .bet, description: "\(target)에게 '\(betType.rawValue)' 베팅", amount: amount)
         return true
@@ -366,27 +395,7 @@ extension PriceHistoryPoint {
     }
 }
 
-// MARK: - User Model
-struct User: Identifiable {
-    let id: UUID
-    var name: String
-    var profileImage: String?
-    var loginMethod: LoginMethod
-}
 
-enum LoginMethod {
-    case kakao
-    case apple
-    case guest
-
-    var displayName: String {
-        switch self {
-        case .kakao: return "카카오"
-        case .apple: return "Apple"
-        case .guest: return "게스트"
-        }
-    }
-}
 
 // MARK: - Sidebar Tab Enum
 enum SidebarTab: String, CaseIterable, Identifiable {

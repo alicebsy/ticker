@@ -25,23 +25,27 @@ spring:
             user-name-attribute: id
 
   datasource:
-    # localhost:3306 -> 내 맥북의 도커 MySQL 포트
-    # ticker_db -> 데이터베이스 이름 (없으면 자동 생성 옵션 추가함)
-    url: jdbc:mysql://localhost:3306/ticker_db?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&createDatabaseIfNotExist=true
-    username: root
-    password: 1234 
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    # H2 Database (In-Memory) for Testing
+    url: jdbc:h2:mem:ticker_db;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+    
+    # MySQL (Commented out)
+    # url: jdbc:mysql://localhost:3306/ticker_db?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&createDatabaseIfNotExist=true
+    # driver-class-name: com.mysql.cj.jdbc.Driver
+    # username: root
+    # password: 1234 
 
   jpa:
     hibernate:
-      # create-drop: 껐다 켜면 데이터 삭제 (비추천)
-      # update: 껐다 켜도 데이터 유지 + 스키마 변경사항만 반영 (추천!)
       ddl-auto: update 
     show-sql: true
     properties:
       hibernate:
         format_sql: true
-        dialect: org.hibernate.dialect.MySQLDialect
+        # dialect: org.hibernate.dialect.MySQLDialect
+        dialect: org.hibernate.dialect.H2Dialect
 
 server:
   # 8080이 사용 중이면: server.port=8081 로 변경하거나 환경변수 SERVER_PORT=8081

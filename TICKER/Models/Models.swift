@@ -164,6 +164,72 @@ struct Holding: Identifiable, Hashable {
     ]
 }
 
+// MARK: - LoginMethod
+enum LoginMethod: String, Codable {
+    case kakao
+    case apple
+    case guest
+    
+    var displayName: String {
+        switch self {
+        case .kakao: return "카카오"
+        case .apple: return "Apple"
+        case .guest: return "게스트"
+        }
+    }
+}
+
+// MARK: - User
+struct User: Identifiable, Codable {
+    let id: Int
+    var name: String
+    var loginId: String
+    var profileImage: String?
+    var loginMethod: LoginMethod
+    
+    // Financials
+    var cashBalance: Int
+    var marketCap: Int
+    var totalAssets: Int
+    var stockPrice: Int
+    
+    // Sample Data Factory
+    static let sampleUser = User(
+        id: 1,
+        name: "김주식",
+        loginId: "user1",
+        profileImage: nil,
+        loginMethod: .kakao,
+        cashBalance: 100_000,
+        marketCap: 100_000,
+        totalAssets: 200_000,
+        stockPrice: 1000
+    )
+}
+
+// MARK: - API Requests & Responses
+struct SignupRequest: Codable {
+    let loginId: String
+    let password: String
+    let name: String
+}
+
+struct LoginRequest: Codable {
+    let loginId: String
+    let password: String
+}
+
+struct LoginResponse: Codable {
+    let id: Int
+    let loginId: String
+    let name: String
+    let profileImageUrl: String?
+    let cashBalance: Int
+    let marketCap: Int
+    let totalAssets: Int
+    let message: String
+}
+
 // MARK: - FriendRequest
 struct FriendRequest: Identifiable, Hashable {
     let id: UUID
@@ -609,14 +675,4 @@ enum BetType: String {
     }
 }
 
-// MARK: - API Requests
-struct SignupRequest: Codable {
-    let loginId: String
-    let password: String
-    let name: String
-}
 
-struct LoginRequest: Codable {
-    let loginId: String
-    let password: String
-}

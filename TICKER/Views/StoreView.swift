@@ -200,7 +200,7 @@ struct StoreItemCard: View {
     @State private var isHovered = false
 
     private var canAfford: Bool {
-        appState.cash >= Double(item.price)
+        appState.cash >= item.price
     }
 
     var body: some View {
@@ -282,11 +282,11 @@ struct StoreItemCard: View {
 struct ItemDetailSheet: View {
     let item: StoreItem
     var onPurchase: () -> Void
-    var cash: Double
+    var cash: Int
     @Environment(\.dismiss) private var dismiss
 
     private var canAfford: Bool {
-        cash >= Double(item.price)
+        cash >= item.price
     }
 
     private func formatDetailPrice(_ value: Int) -> String {

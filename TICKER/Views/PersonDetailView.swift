@@ -443,7 +443,7 @@ struct PersonDetailView: View {
     private var canExecuteOrder: Bool {
         guard appState.isMarketOpen else { return false }
         if orderType == .buy {
-            return friend.availableShares >= quantity && appState.cash >= friend.currentPrice * Double(quantity)
+            return friend.availableShares >= quantity && appState.cash >= Int(friend.currentPrice * Double(quantity))
         } else {
             return myHoldingQuantity >= quantity
         }

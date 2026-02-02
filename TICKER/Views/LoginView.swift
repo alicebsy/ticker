@@ -213,29 +213,15 @@ struct LoginView: View {
             withAnimation(.easeInOut(duration: 0.3)) {
                 appState.isLoggedIn = true
                 appState.currentUser = User(
-                    id: UUID(),
+                    id: 1,
                     name: "김주식",
+                    loginId: "kakao_user",
                     profileImage: nil,
-                    loginMethod: .kakao
-                )
-            }
-            isLoading = false
-        }
-    }
-    
-    private func handleAppleLogin() {
-        isLoading = true
-        
-        // 실제 앱에서는 AuthenticationServices를 사용하여 로그인 처리
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            withAnimation(.easeInOut(duration: 0.3)) {
-                appState.isLoggedIn = true
-                appState.currentUser = User(
-                    id: UUID(),
-                    name: "Apple 사용자",
-                    profileImage: nil,
-                    loginMethod: .apple
+                    loginMethod: .kakao,
+                    cashBalance: 100_000,
+                    marketCap: 100_000,
+                    totalAssets: 200_000,
+                    stockPrice: 1000
                 )
             }
             isLoading = false
@@ -246,10 +232,15 @@ struct LoginView: View {
         withAnimation(.easeInOut(duration: 0.3)) {
             appState.isLoggedIn = true
             appState.currentUser = User(
-                id: UUID(),
+                id: 0,
                 name: "게스트",
+                loginId: "guest",
                 profileImage: nil,
-                loginMethod: .guest
+                loginMethod: .guest,
+                cashBalance: 100_000,
+                marketCap: 100_000,
+                totalAssets: 200_000,
+                stockPrice: 1000
             )
         }
     }

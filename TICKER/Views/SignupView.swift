@@ -132,20 +132,15 @@ struct SignupView: View {
     private func handleSignup() {
         isLoading = true
         
-        // 시뮬레이션: 회원가입 성공 처리
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            isLoading = false
-            
-            // 로그인 상태로 전환
-            withAnimation(.easeInOut(duration: 0.3)) {
-                appState.isLoggedIn = true
-                appState.currentUser = User(
-                    id: UUID(),
-                    name: name,
-                    profileImage: nil,
-                    loginMethod: .guest // 임시로 guest 타입 사용
-                )
+        Task {
+            do {
+                let request = SignupRequest(loginId: loginId, password: password, name: name)
+                try await appState.signup(request: request)
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
             }
+            isLoading = false
         }
     }
 }

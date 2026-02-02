@@ -58,8 +58,8 @@ struct CasinoView: View {
         guard let friend = selectedFriend else { return }
         guard let amount = Int(betAmount), amount > 0 else { return }
 
-        if Double(amount) > appState.cash {
-            alertMessage = "보유 현금(\(formatCasinoPrice(Int(appState.cash)))P)이 부족합니다.\n베팅 금액: \(formatCasinoPrice(amount))P"
+        if amount > appState.cash {
+            alertMessage = "보유 현금(\(formatCasinoPrice(appState.cash))P)이 부족합니다.\n베팅 금액: \(formatCasinoPrice(amount))P"
             showInsufficientFundsAlert = true
             return
         }
