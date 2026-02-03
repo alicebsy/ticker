@@ -61,10 +61,10 @@ public class User {
     @Builder.Default
     private Long totalAssets = 200_000L;
 
-    /** 내 주가 (해당 사용자의 할 일 완료율 등으로 계산되는 "가치") */
+    /** 내 주가 (1주당 P) - 성공률에 따라 변동, 시가총액 = stockPrice × 100주. 초기 1,000원 */
     @Column(nullable = false)
     @Builder.Default
-    private Long stockPrice = 100L;
+    private Long stockPrice = 1_000L;
 
     /** 연속 상승일 수 (주가 차트 "연속 N일 상승" 표시용) */
     @Builder.Default

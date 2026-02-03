@@ -36,7 +36,7 @@ public class DataLoader implements CommandLineRunner {
                 .cashBalance(100_000L)
                 .marketCap(100_000L)
                 .totalAssets(200_000L)
-                .stockPrice(130L)
+                .stockPrice(1_000L)
                 .consecutiveUpDays(5)
                 .build();
         User user2 = User.builder()
@@ -47,7 +47,7 @@ public class DataLoader implements CommandLineRunner {
                 .cashBalance(100_000L)
                 .marketCap(100_000L)
                 .totalAssets(200_000L)
-                .stockPrice(100L)
+                .stockPrice(1_000L)
                 .build();
         User user3 = User.builder()
                 .name("박준혁")
@@ -57,7 +57,7 @@ public class DataLoader implements CommandLineRunner {
                 .cashBalance(100_000L)
                 .marketCap(100_000L)
                 .totalAssets(200_000L)
-                .stockPrice(150L)
+                .stockPrice(1_000L)
                 .consecutiveUpDays(3)
                 .build();
         User user4 = User.builder()
@@ -68,16 +68,16 @@ public class DataLoader implements CommandLineRunner {
                 .cashBalance(100_000L)
                 .marketCap(100_000L)
                 .totalAssets(200_000L)
-                .stockPrice(110L)
+                .stockPrice(1_000L)
                 .build();
 
         userRepository.saveAll(List.of(user1, user2, user3, user4));
 
-        // 내 주가 차트용 이력 (user1)
+        // 내 주가 차트용 이력 (user1, 1주당 가격)
         for (int i = 6; i >= 0; i--) {
             StockPriceHistory h = StockPriceHistory.builder()
                     .user(user1)
-                    .price(100L + i * 5L)
+                    .price(1000L + i * 10L)
                     .recordDate(LocalDate.now().minusDays(i))
                     .build();
             stockPriceHistoryRepository.save(h);

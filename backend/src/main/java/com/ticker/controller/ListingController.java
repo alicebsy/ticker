@@ -4,6 +4,7 @@ import com.ticker.dto.ListingRequest;
 import com.ticker.dto.ListingResponse;
 import com.ticker.model.Todo;
 import com.ticker.service.ListingService;
+import com.ticker.service.StockPriceUpdateService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 public class ListingController {
 
     private final ListingService listingService;
+    private final StockPriceUpdateService stockPriceUpdateService;
 
     /**
      * 상장 화면 데이터 (차트 + 상장 중 종목)
@@ -61,6 +63,17 @@ public class ListingController {
             @PathVariable Long todoId,
             @RequestParam Integer progress) {
         listingService.updateProgress(todoId, progress);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 일일 주가 갱신 (성공률 반영)
+     * 오늘 투두 4개 이상 기준 완료율에 따라 한 사람 단위 주가 변동.
+     * 스케줄러 10시 호출 또는 수동 트리거용.
+     */
+    @PostMapping("/daily-stock-update")
+    public ResponseEntity<Void> runDailyStockUpdate() {
+        stockPriceUpdateService.updateDailyStockPrices();
         return ResponseEntity.ok().build();
     }
 }

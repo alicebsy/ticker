@@ -1,8 +1,14 @@
 package com.ticker.service;
 
 import com.ticker.dto.PortfolioResponse;
-import com.ticker.model.*;
-import com.ticker.repository.*;
+import com.ticker.model.Investment;
+import com.ticker.model.User;
+import com.ticker.model.UserSkill;
+import com.ticker.model.DelistedHistory;
+import com.ticker.repository.UserRepository;
+import com.ticker.repository.InvestmentRepository;
+import com.ticker.repository.UserSkillRepository;
+import com.ticker.repository.DelistedHistoryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,27 +37,22 @@ public class PortfolioService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
 
-        // 투자 중인 종목 조회
-        List<Investment> investments = investmentRepository.findByInvestorIdWithTodoAndOwner(userId);
+        // 투자 중인 종목(한 사람 주식) 조회
+        List<Investment> investments = investmentRepository.findByInvestorIdWithSubjectUser(userId);
         long investingAmount = investments.stream()
-                .mapToLong(i -> i.getQuantity() * i.getTodo().getCurrentPrice())
+                .mapToLong(i -> (long) i.getQuantity() * i.getSubjectUser().getStockPrice())
                 .sum();
 
-        // DTO 변환
         List<PortfolioResponse.InvestmentSummaryDto> investmentDtos = investments.stream()
                 .map(i -> {
-                    Todo todo = i.getTodo();
-                    User owner = todo.getOwner();
-                    long value = i.getQuantity() * todo.getCurrentPrice();
-                    String change = todo.getDailyChangePercent() != null
-                            ? String.format("%+.2f%%", todo.getDailyChangePercent())
-                            : "— 0.00%";
+                    User subject = i.getSubjectUser();
+                    long value = (long) i.getQuantity() * subject.getStockPrice();
                     return new PortfolioResponse.InvestmentSummaryDto(
                             i.getId(),
-                            owner.getName(),
-                            owner.getProfileImageUrl(),
+                            subject.getName(),
+                            subject.getProfileImageUrl(),
                             value,
-                            change
+                            "— 0.00%"
                     );
                 })
                 .collect(Collectors.toList());

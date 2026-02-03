@@ -3,11 +3,8 @@ package com.ticker.service;
 import com.ticker.dto.HeldStocksResponse;
 import com.ticker.dto.InvestRequest;
 import com.ticker.model.Investment;
-import com.ticker.model.Todo;
-import com.ticker.model.TodoStatus;
 import com.ticker.model.User;
 import com.ticker.repository.InvestmentRepository;
-import com.ticker.repository.TodoRepository;
 import com.ticker.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,62 +12,57 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * 투자 서비스
- * 매수/매도, 보유 종목 조회
+ * 한 사람 단위 주가: 100주 중 30주만 매물, 1주당 가격 = 해당 유저의 stockPrice.
+ * 보유 자산으로만 매수 가능, 매도 시 보유 자산에 반영.
  */
 @Service
 @RequiredArgsConstructor
 public class InvestmentService {
 
+    /** 사람당 매물로 내놓을 수 있는 주식 수 (100주 - 창업자 70주) */
+    private static final int SELLABLE_SHARES_PER_USER = 30;
+
     private final InvestmentRepository investmentRepository;
-    private final TodoRepository todoRepository;
     private final UserRepository userRepository;
 
-    /**
-     * 보유 종목 목록 및 요약 조회
-     */
     @Transactional(readOnly = true)
     public HeldStocksResponse getHeldStocks(Long userId) {
-        List<Investment> investments = investmentRepository.findByInvestorIdWithTodoAndOwner(userId);
+        List<Investment> investments = investmentRepository.findByInvestorIdWithSubjectUser(userId);
 
         long totalValuation = 0;
         long totalPurchase = 0;
 
         List<HeldStocksResponse.HeldStockDto> dtos = investments.stream()
                 .map(inv -> {
-                    Todo todo = inv.getTodo();
-                    User owner = todo.getOwner();
-                    long valuation = inv.getQuantity() * todo.getCurrentPrice();
+                    User subject = inv.getSubjectUser();
+                    long currentPrice = subject.getStockPrice();
+                    long valuation = inv.getQuantity() * currentPrice;
                     long purchase = inv.getQuantity() * inv.getPurchasePrice();
                     long profitLoss = valuation - purchase;
                     double profitLossPct = purchase > 0 ? (profitLoss * 100.0 / purchase) : 0;
 
-                    String priceChange = todo.getDailyChangePercent() != null
-                            ? String.format("%+.2f%%", todo.getDailyChangePercent())
-                            : "— 0.00%";
-
                     return new HeldStocksResponse.HeldStockDto(
                             inv.getId(),
-                            owner.getName(),
-                            owner.getProfileImageUrl(),
-                            todo.getCurrentPrice(),
-                            priceChange,
+                            subject.getName(),
+                            subject.getProfileImageUrl(),
+                            currentPrice,
+                            "— 0.00%",  // 일일 변동은 주가 이력에서 계산 가능
                             profitLoss,
                             String.format("(%+.2f%%)", profitLossPct),
                             inv.getQuantity(),
-                            0  // 보유 비중은 아래에서 재계산
+                            0
                     );
                 })
-                .collect(Collectors.toList());
+                .toList();
 
         totalValuation = dtos.stream()
                 .mapToLong(d -> d.getCurrentPrice() * d.getQuantity())
                 .sum();
         totalPurchase = investments.stream()
-                .mapToLong(i -> i.getQuantity() * i.getPurchasePrice())
+                .mapToLong(i -> (long) i.getQuantity() * i.getPurchasePrice())
                 .sum();
 
         long finalTotalValuation = totalValuation;
@@ -93,45 +85,47 @@ public class InvestmentService {
                 .build();
     }
 
-    /**
-     * 매수
-     */
     @Transactional
     public Investment buy(Long userId, InvestRequest request) {
         User investor = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
+        User subjectUser = userRepository.findById(request.getSubjectUserId())
+                .orElseThrow(() -> new IllegalArgumentException("대상 사용자를 찾을 수 없습니다: " + request.getSubjectUserId()));
 
-        Todo todo = todoRepository.findById(request.getTodoId())
-                .orElseThrow(() -> new IllegalArgumentException("종목을 찾을 수 없습니다: " + request.getTodoId()));
-
-        if (todo.getStatus() != TodoStatus.LISTED) {
-            throw new IllegalArgumentException("상장 중인 종목만 매수할 수 있습니다");
+        if (investor.getId().equals(subjectUser.getId())) {
+            throw new IllegalArgumentException("본인 주식은 매수할 수 없습니다");
         }
 
         int quantity = request.getQuantity() != null ? request.getQuantity() : 1;
-        long cost = quantity * todo.getCurrentPrice();
+        long pricePerShare = subjectUser.getStockPrice();
+        long cost = quantity * pricePerShare;
 
-        if (investor.getCashBalance() < cost) {
-            throw new IllegalArgumentException("잔액이 부족합니다");
+        long alreadySold = investmentRepository.sumQuantityBySubjectUserId(subjectUser.getId());
+        if (alreadySold + quantity > SELLABLE_SHARES_PER_USER) {
+            throw new IllegalArgumentException("매물 한도(30주)를 초과합니다. 남은 주: " + (SELLABLE_SHARES_PER_USER - alreadySold) + "주");
         }
 
-        Optional<Investment> existing = investmentRepository.findByInvestorIdAndTodoId(userId, todo.getId());
+        if (investor.getCashBalance() < cost) {
+            throw new IllegalArgumentException("잔액이 부족합니다. 필요: " + cost + "P, 보유: " + investor.getCashBalance() + "P");
+        }
+
+        Optional<Investment> existing = investmentRepository.findByInvestorIdAndSubjectUserId(userId, subjectUser.getId());
         Investment investment;
 
         if (existing.isPresent()) {
             investment = existing.get();
             int oldQty = investment.getQuantity();
-            long oldCost = oldQty * investment.getPurchasePrice();
+            long oldCost = (long) oldQty * investment.getPurchasePrice();
             int newQty = oldQty + quantity;
             long newCost = oldCost + cost;
             investment.setQuantity(newQty);
-            investment.setPurchasePrice(newCost / newQty);  // 평균 단가
+            investment.setPurchasePrice(newCost / newQty);
         } else {
             investment = Investment.builder()
                     .investor(investor)
-                    .todo(todo)
+                    .subjectUser(subjectUser)
                     .quantity(quantity)
-                    .purchasePrice(todo.getCurrentPrice())
+                    .purchasePrice(pricePerShare)
                     .build();
             investment = investmentRepository.save(investment);
         }
@@ -142,9 +136,6 @@ public class InvestmentService {
         return investment;
     }
 
-    /**
-     * 매도
-     */
     @Transactional
     public void sell(Long userId, Long investmentId, Integer sellQuantity) {
         Investment investment = investmentRepository.findById(investmentId)
@@ -159,7 +150,8 @@ public class InvestmentService {
             throw new IllegalArgumentException("보유 수량을 초과할 수 없습니다");
         }
 
-        long proceeds = qty * investment.getTodo().getCurrentPrice();
+        long pricePerShare = investment.getSubjectUser().getStockPrice();
+        long proceeds = qty * pricePerShare;
         User investor = investment.getInvestor();
         investor.setCashBalance(investor.getCashBalance() + proceeds);
         userRepository.save(investor);

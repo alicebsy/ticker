@@ -52,8 +52,8 @@ public class DarkMarketService {
                 1050L
         );
 
-        long investing = investmentRepository.findByInvestorIdWithTodoAndOwner(userId).stream()
-                .mapToLong(i -> i.getQuantity() * i.getTodo().getCurrentPrice())
+        long investing = investmentRepository.findByInvestorIdWithSubjectUser(userId).stream()
+                .mapToLong(i -> (long) i.getQuantity() * i.getSubjectUser().getStockPrice())
                 .sum();
         return DarkMarketResponse.builder()
                 .userPoints(user.getCashBalance() + investing)
