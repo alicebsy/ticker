@@ -27,6 +27,7 @@ public class CasinoService {
     private final BetRepository betRepository;
     private final TodoRepository todoRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     /**
      * 카지노 화면 데이터 (베팅 가능 금액, 베팅 내역)
@@ -94,6 +95,8 @@ public class CasinoService {
                 .predictSuccess(request.getPredictSuccess())
                 .status(BetStatus.IN_PROGRESS)
                 .build();
-        return betRepository.save(bet);
+        Bet saved = betRepository.save(bet);
+        notificationService.notifyBetPlaced(todo.getOwner(), bettor, todo);
+        return saved;
     }
 }

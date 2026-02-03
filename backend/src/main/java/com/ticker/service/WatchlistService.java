@@ -29,6 +29,7 @@ public class WatchlistService {
     private final FriendshipRepository friendshipRepository;
     private final UserRepository userRepository;
     private final FriendCodeGenerator friendCodeGenerator;
+    private final NotificationService notificationService;
 
     /**
      * 관심 종목 화면 데이터 조회
@@ -116,6 +117,9 @@ public class WatchlistService {
                 .status(Friendship.FriendshipStatus.PENDING)
                 .build();
         friendshipRepository.save(friendship);
+
+        // 실시간 알림: 요청 받은 사람에게 소켓 발송
+        notificationService.notifyFriendRequest(addressee, requester);
     }
 
     private Long resolveFriendUserId(FriendRequest request) {
@@ -182,6 +186,11 @@ public class WatchlistService {
                 .orElseThrow(() -> new IllegalArgumentException("요청을 찾을 수 없습니다"));
         f.setStatus(Friendship.FriendshipStatus.ACCEPTED);
         friendshipRepository.save(f);
+
+        // 실시간 알림: 요청 보낸 사람에게 수락 알림
+        User requester = f.getRequester();
+        User accepter = f.getAddressee();
+        notificationService.notifyFriendAccepted(requester, accepter);
     }
 
     /**
@@ -193,6 +202,11 @@ public class WatchlistService {
                 .orElseThrow(() -> new IllegalArgumentException("요청을 찾을 수 없습니다"));
         f.setStatus(Friendship.FriendshipStatus.REJECTED);
         friendshipRepository.save(f);
+
+        // 실시간 알림: 요청 보낸 사람에게 거절 알림
+        User requester = f.getRequester();
+        User rejecter = f.getAddressee();
+        notificationService.notifyFriendRejected(requester, rejecter);
     }
 
     /**
@@ -224,5 +238,7 @@ public class WatchlistService {
         User watched = userRepository.findById(watchedUserId).orElseThrow();
         Watchlist w = Watchlist.builder().user(user).watchedUser(watched).build();
         watchlistRepository.save(w);
+
+        notificationService.notifyAddedToWatchlist(watched, user);
     }
 }

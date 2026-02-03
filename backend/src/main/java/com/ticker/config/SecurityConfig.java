@@ -33,6 +33,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/signup", "/api/auth/login").permitAll()
                         .requestMatchers("/api/auth/kakao/login-url").permitAll()
                         .requestMatchers("/api/auth/me").authenticated()
+                        // WebSocket (친구 알림 등)
+                        .requestMatchers("/ws", "/ws/**").permitAll()
                         // H2 콘솔 (개발용)
                         .requestMatchers("/h2-console/**").permitAll()
                         // 그 외 API는 모두 허용 (실제 서비스에서는 인증 적용)

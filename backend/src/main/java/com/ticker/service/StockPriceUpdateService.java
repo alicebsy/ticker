@@ -32,6 +32,7 @@ public class StockPriceUpdateService {
     private final UserRepository userRepository;
     private final TodoRepository todoRepository;
     private final StockPriceHistoryRepository stockPriceHistoryRepository;
+    private final NotificationService notificationService;
 
     /**
      * 모든 유저에 대해 오늘의 성공률을 반영해 주가 갱신.
@@ -104,5 +105,8 @@ public class StockPriceUpdateService {
                 .recordDate(recordDate)
                 .build();
         stockPriceHistoryRepository.save(history);
+
+        // 주가 변동 시 다른 사람들에게 실시간 반영 (구독: /topic/stock/{userId})
+        notificationService.sendStockPriceUpdate(user);
     }
 }

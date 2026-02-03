@@ -1,7 +1,6 @@
 package com.ticker.repository;
 
 import com.ticker.model.Friendship;
-import com.ticker.model.Friendship.FriendshipStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -26,5 +25,7 @@ public interface FriendshipRepository extends JpaRepository<Friendship, Long> {
            "WHERE (f.requester.id = :userId OR f.addressee.id = :userId) AND f.status = 'ACCEPTED'")
     List<Friendship> findAcceptedFriendsByUserId(Long userId);
 
+    /** 수락/거절 시 requester, addressee 함께 로드 (LazyInitialization 방지) */
+    @Query("SELECT f FROM Friendship f JOIN FETCH f.requester JOIN FETCH f.addressee WHERE f.requester.id = :requesterId AND f.addressee.id = :addresseeId")
     Optional<Friendship> findByRequesterIdAndAddresseeId(Long requesterId, Long addresseeId);
 }

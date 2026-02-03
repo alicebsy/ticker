@@ -25,6 +25,7 @@ public class ListingService {
     private final TodoRepository todoRepository;
     private final UserRepository userRepository;
     private final StockPriceHistoryRepository stockPriceHistoryRepository;
+    private final NotificationService notificationService;
 
     /**
      * 신규 상장 - 할 일 등록
@@ -55,7 +56,9 @@ public class ListingService {
                 .status(TodoStatus.LISTED)
                 .build();
 
-        return todoRepository.save(todo);
+        Todo saved = todoRepository.save(todo);
+        notificationService.sendListingUpdate(owner.getId(), saved.getId(), 0, false);
+        return saved;
     }
 
     /**
@@ -125,8 +128,12 @@ public class ListingService {
     public void updateProgress(Long todoId, Integer progress) {
         Todo todo = todoRepository.findById(todoId)
                 .orElseThrow(() -> new IllegalArgumentException("할 일을 찾을 수 없습니다: " + todoId));
-        todo.setProgress(Math.min(100, Math.max(0, progress)));
+        int newProgress = Math.min(100, Math.max(0, progress));
+        todo.setProgress(newProgress);
         todoRepository.save(todo);
+
+        // 진행률 변경 시 실시간 반영 (그래프·목록 갱신용)
+        notificationService.sendListingUpdate(todo.getOwner().getId(), todoId, newProgress, false);
     }
 
     /**
@@ -142,6 +149,9 @@ public class ListingService {
         todo.setStatus(TodoStatus.COMPLETED);
         todo.setProgress(100);
         todoRepository.save(todo);
+
+        // 완료 체크 시 그래프·목록 실시간 반영 (다른 사람들 화면에도 바로 반영)
+        notificationService.sendListingUpdate(todo.getOwner().getId(), todoId, 100, true);
         // TODO: 투자자들에게 보상/손실 분배 로직
     }
 

@@ -45,6 +45,19 @@ H2 Console: `http://localhost:8080/h2-console`
 - `POST /api/watchlist/friends/{requesterId}/reject` - 요청 거절
 - `POST /api/watchlist/{watchedUserId}` - 관심 종목에 추가
 
+### WebSocket (실시간 알림)
+- **연결**: `ws://localhost:8080/ws` (SockJS + STOMP)
+- **구독 1 — 유저 알림**: `/topic/user/{userId}/notifications`  
+  - 친구 요청/수락/거절 알림  
+  - `type`: FRIEND_REQUEST, FRIEND_ACCEPTED, FRIEND_REJECTED
+- **구독 2 — 주가·상장 실시간**: `/topic/stock/{userId}`  
+  - **주가 변동**: STOCK_PRICE_UPDATED, `userId`, `stockPrice`, `marketCap`, `totalAssets`  
+  - **할 일 완료/진행률/신규 상장**: LISTING_UPDATED, `userId`, `todoId`, `progress`, `completed`  
+  - **내 주식 매수/매도**: INVESTMENT_CHANGED, `userId`, `remainingShares` (남은 매물 주 수)  
+- **유저 알림** (`/topic/user/{userId}/notifications`) 추가 타입:  
+  - BET_PLACED: 내 할 일에 베팅이 걸림 (`fromUserId`, `todoId`)  
+  - ADDED_TO_WATCHLIST: 나를 관심 종목에 추가함
+
 ### 암시장
 - `GET /api/darkmarket` - 암시장 화면 (아이템 목록, 오늘의 특가)
 - `POST /api/darkmarket/purchase` - 아이템 구매
