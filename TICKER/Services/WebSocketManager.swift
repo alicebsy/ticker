@@ -1,8 +1,8 @@
 import Foundation
 import Combine
 
-class WebSocketManager: NSObject, ObservableObject {
-    static let shared = WebSocketManager()
+public class WebSocketManager: NSObject, ObservableObject {
+    public static let shared = WebSocketManager()
     
     private var webSocketTask: URLSessionWebSocketTask?
     private let url = URL(string: "ws://127.0.0.1:8080/ws/websocket")!
@@ -16,7 +16,7 @@ class WebSocketManager: NSObject, ObservableObject {
         super.init()
     }
     
-    func connect(userId: Int) {
+    public func connect(userId: Int) {
         let session = URLSession(configuration: .default, delegate: self, delegateQueue: OperationQueue())
         webSocketTask = session.webSocketTask(with: url)
         webSocketTask?.resume()
@@ -35,12 +35,12 @@ class WebSocketManager: NSObject, ObservableObject {
         subscribe(to: "/topic/stock/\(userId)")
     }
     
-    func disconnect() {
+    public func disconnect() {
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         isConnected = false
     }
     
-    func subscribe(to destination: String) {
+    public func subscribe(to destination: String) {
         sendStompFrame(command: "SUBSCRIBE", headers: [
             "id": "sub-\(destination)",
             "destination": destination
@@ -86,11 +86,21 @@ class WebSocketManager: NSObject, ObservableObject {
     }
     
     private func handleStompMessage(_ text: String) {
-        // Simple STOMP parser
-        let lines = text.components(separatedBy: "\n")
-        guard !lines.isEmpty else { return }
+        // Skip heartbeat frames (empty lines)
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return
+        }
         
-        let command = lines[0]
+        // Simple STOMP parser handling both \n and \r\n
+        let normalizedText = text.replacingOccurrences(of: "\r\n", with: "\n")
+        let parts = normalizedText.components(separatedBy: "\n\n")
+        guard !parts.isEmpty else { return }
+        
+        let headerLines = parts[0].components(separatedBy: "\n")
+        guard !headerLines.isEmpty else { return }
+        
+        let command = headerLines[0]
+        
         if command == "CONNECTED" {
             DispatchQueue.main.async {
                 self.isConnected = true
@@ -100,10 +110,10 @@ class WebSocketManager: NSObject, ObservableObject {
         }
         
         if command == "MESSAGE" {
-            // Find body (after empty line)
-            if let luckyIndex = text.range(of: "\n\n") {
-                let bodyWithNull = String(text[luckyIndex.upperBound...])
-                let body = bodyWithNull.trimmingCharacters(in: CharacterSet(charactersIn: "\0"))
+            // Body is everything after the first \n\n
+            if let bodyStartIndex = normalizedText.range(of: "\n\n")?.upperBound {
+                let remainder = String(normalizedText[bodyStartIndex...])
+                let body = remainder.trimmingCharacters(in: CharacterSet(charactersIn: "\0\n\r "))
                 
                 if let data = body.data(using: .utf8) {
                     do {
@@ -113,6 +123,7 @@ class WebSocketManager: NSObject, ObservableObject {
                         }
                     } catch {
                         print("Failed to decode STOMP message: \(error)")
+                        print("Raw body: \(body)")
                     }
                 }
             }
@@ -121,11 +132,11 @@ class WebSocketManager: NSObject, ObservableObject {
 }
 
 extension WebSocketManager: URLSessionWebSocketDelegate {
-    func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didOpenWithProtocol protocol: String?) {
+    public func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didOpenWithProtocol `protocol`: String?) {
         print("WebSocket Opened")
     }
     
-    func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWithCode closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
+    public func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
         print("WebSocket Closed")
         self.isConnected = false
     }

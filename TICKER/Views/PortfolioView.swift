@@ -458,65 +458,14 @@ struct PortfolioView: View {
         return formatter.string(from: NSNumber(value: value)) ?? "0"
     }
 
-    private var recentActivities: [Activity] {
+    private var recentActivities: [TickerActivity] {
         Array(appState.activities.prefix(10))
     }
 }
 
-// MARK: - Activity
-struct Activity: Identifiable {
-    let id = UUID()
-    let type: ActivityType
-    let description: String
-    let amount: Int
-    let time: String
-    let timestamp: Date
-
-    init(type: ActivityType, description: String, amount: Int, time: String, timestamp: Date = Date()) {
-        self.type = type
-        self.description = description
-        self.amount = amount
-        self.time = time
-        self.timestamp = timestamp
-    }
-
-    var timeAgo: String {
-        let interval = Date().timeIntervalSince(timestamp)
-        if interval < 60 { return "방금 전" }
-        if interval < 3600 { return "\(Int(interval / 60))분 전" }
-        if interval < 86400 { return "\(Int(interval / 3600))시간 전" }
-        return "\(Int(interval / 86400))일 전"
-    }
-}
-
-enum ActivityType {
-    case buy, sell, dividend, listing, purchase, bet
-
-    var icon: String {
-        switch self {
-        case .buy: return "arrow.down.circle.fill"
-        case .sell: return "arrow.up.circle.fill"
-        case .dividend: return "gift.fill"
-        case .listing: return "plus.circle.fill"
-        case .purchase: return "bag.fill"
-        case .bet: return "dice.fill"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .buy: return .blue
-        case .sell: return .orange
-        case .dividend: return .green
-        case .listing: return .purple
-        case .purchase: return .purple
-        case .bet: return .pink
-        }
-    }
-}
 
 struct ActivityRow: View {
-    let activity: Activity
+    let activity: TickerActivity
 
     private var isIncome: Bool {
         activity.type == .sell || activity.type == .dividend

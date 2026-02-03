@@ -321,7 +321,7 @@ struct AllStocksView: View {
                         id: UUID(),
                         userId: user.id,
                         name: user.name,
-                        ticker: user.name.prefix(2).uppercased(),
+                        ticker: user.friendCode ?? user.name.prefix(2).uppercased(),
                         currentPrice: Double(user.stockPrice),
                         change: 0.0,
                         bio: "",

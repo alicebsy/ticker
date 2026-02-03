@@ -104,7 +104,7 @@ struct SidebarView: View {
                             Text(user.name)
                                 .font(.system(size: 13, weight: .medium))
 
-                            Text(user.loginMethod.displayName + " 로그인")
+                            Text((user.loginMethod?.displayName ?? "일반") + " 로그인")
                                 .font(.system(size: 10))
                                 .foregroundStyle(AppTheme.secondaryText)
                         }

@@ -82,7 +82,8 @@ class AppState: ObservableObject {
             cashBalance: response.cashBalance,
             marketCap: response.marketCap,
             totalAssets: response.totalAssets,
-            stockPrice: response.stockPrice
+            stockPrice: response.stockPrice,
+            friendCode: response.friendCode
         )
         self.cash = response.cashBalance
         self.userStockPrice = Double(response.stockPrice)
@@ -111,7 +112,8 @@ class AppState: ObservableObject {
                 cashBalance: userResponse.cashBalance,
                 marketCap: userResponse.marketCap,
                 totalAssets: userResponse.totalAssets,
-                stockPrice: userResponse.stockPrice
+                stockPrice: userResponse.stockPrice,
+                friendCode: userResponse.friendCode
             )
             self.cash = userResponse.cashBalance
             self.userStockPrice = Double(userResponse.stockPrice)
@@ -122,12 +124,6 @@ class AppState: ObservableObject {
             await fetchMyData()
         } catch {
             print("카카오 로그인 콜백 에러: \(error.localizedDescription)")
-        }
-    }
-    
-    @MainActor
-    func fetchMyData() async {
-        do {
         }
     }
     
@@ -189,6 +185,14 @@ class AppState: ObservableObject {
     @MainActor
     func fetchMyData() async {
         do {
+            // 0. Update My Profile (to get latest friendCode, etc.)
+            if let userId = currentUser?.id {
+                let userResponse = try await NetworkManager.shared.fetchUser(userId: userId)
+                self.currentUser?.friendCode = userResponse.friendCode
+                self.currentUser?.cashBalance = userResponse.cashBalance
+                self.currentUser?.stockPrice = userResponse.stockPrice
+            }
+            
             // 1. Portfolio
             let portfolio: PortfolioResponse = try await NetworkManager.shared.request("/portfolio")
             self.cash = portfolio.cashBalance
@@ -372,16 +376,18 @@ class AppState: ObservableObject {
     @Published var bettingHistory: [BettingHistory] = []
     @Published var marketItems: [MarketItem] = []
     
-    @Published var myFriendCode: String = {
-        let code = Int.random(in: 1000...9999)
-        return "TICKER-\(String(format: "%04d", code))"
-    }()
+    var myFriendCode: String {
+        if let code = currentUser?.friendCode, !code.isEmpty {
+            return code
+        }
+        return "코드 없음"
+    }
 
     // 뉴스 / 커뮤니티
     @Published var newsPosts: [NewsPost] = NewsPost.sampleData
 
     // 활동 내역
-    @Published var activities: [Activity] = []
+    @Published var activities: [TickerActivity] = []
 
     // 스토어
     // 스토어
@@ -782,8 +788,8 @@ class AppState: ObservableObject {
     }
 
     // MARK: - 활동 내역
-    func addActivity(type: ActivityType, description: String, amount: Int) {
-        let activity = Activity(type: type, description: description, amount: amount, time: "방금 전", timestamp: Date())
+    func addActivity(type: TickerActivityType, description: String, amount: Int) {
+        let activity = TickerActivity(type: type, description: description, amount: amount, time: "방금 전", timestamp: Date())
         activities.insert(activity, at: 0)
 
         if activities.count > 50 {

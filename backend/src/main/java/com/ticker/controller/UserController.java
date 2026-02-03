@@ -25,10 +25,13 @@ public class UserController {
         @GetMapping("/search")
         public ResponseEntity<List<User>> search(
                         @RequestParam String q) {
+                String query = q.trim();
+                System.out.println("🔍 Searching users with query: " + query);
                 List<User> users = userRepository.findAll().stream()
-                                .filter(u -> u.getName().toLowerCase().contains(q.toLowerCase())
-                                                || u.getLoginId().toLowerCase().contains(q.toLowerCase())
-                                                || (u.getFriendCode() != null && u.getFriendCode().equalsIgnoreCase(q)))
+                                .filter(u -> u.getName().toLowerCase().contains(query.toLowerCase())
+                                                || u.getLoginId().toLowerCase().contains(query.toLowerCase())
+                                                || (u.getFriendCode() != null
+                                                                && u.getFriendCode().equalsIgnoreCase(query)))
                                 .limit(20)
                                 .toList();
                 return ResponseEntity.ok(users);

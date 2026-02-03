@@ -63,6 +63,7 @@ public class AuthController {
                 "marketCap", saved.getMarketCap(),
                 "totalAssets", saved.getTotalAssets(),
                 "stockPrice", saved.getStockPrice(),
+                "friendCode", saved.getFriendCode(),
                 "message", "회원가입이 완료되었습니다"));
     }
 
@@ -89,6 +90,7 @@ public class AuthController {
                             "marketCap", user.getMarketCap(),
                             "totalAssets", user.getTotalAssets(),
                             "stockPrice", user.getStockPrice(),
+                            "friendCode", user.getFriendCode(),
                             "message", "로그인 성공"));
                 })
                 .orElse(ResponseEntity.status(404).body(Map.of(
@@ -124,6 +126,7 @@ public class AuthController {
                         "marketCap", user.getMarketCap(),
                         "totalAssets", user.getTotalAssets(),
                         "stockPrice", user.getStockPrice(),
+                        "friendCode", user.getFriendCode(),
                         "oauthProvider", user.getOauthProvider() != null ? user.getOauthProvider() : "")))
                 .orElse(ResponseEntity.status(404).build());
     }

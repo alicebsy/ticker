@@ -188,13 +188,20 @@ struct User: Identifiable, Codable {
     var name: String
     var loginId: String
     var profileImage: String?
-    var loginMethod: LoginMethod
+    var loginMethod: LoginMethod?
     
     // Financials
     var cashBalance: Int
     var marketCap: Int
     var totalAssets: Int
     var stockPrice: Int
+    var friendCode: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case id, name, loginId, cashBalance, marketCap, totalAssets, stockPrice, friendCode
+        case profileImage = "profileImageUrl"
+        case loginMethod
+    }
     
     // Sample Data Factory
     static let sampleUser = User(
@@ -206,8 +213,24 @@ struct User: Identifiable, Codable {
         cashBalance: 100_000,
         marketCap: 100_000,
         totalAssets: 200_000,
-        stockPrice: 1000
+        stockPrice: 1000,
+        friendCode: "TICKER-1234"
     )
+}
+// MARK: - Todo (Backend Entity)
+struct Todo: Codable, Identifiable {
+    let id: Int
+    let name: String
+    let deadline: String
+    let rewardPoints: Int
+    let progress: Int
+    let status: String
+}
+
+enum Difficulty: String, Codable {
+    case easy = "EASY"
+    case normal = "NORMAL"
+    case hard = "HARD"
 }
 
 // MARK: - API Requests & Responses
@@ -352,6 +375,7 @@ struct LoginResponse: Codable {
     let marketCap: Int
     let totalAssets: Int
     let stockPrice: Int
+    let friendCode: String?
     let message: String
 }
 
@@ -449,6 +473,7 @@ struct UserResponse: Codable {
     let marketCap: Int
     let totalAssets: Int
     let stockPrice: Int
+    let friendCode: String?
     let oauthProvider: String?
 }
 
@@ -720,6 +745,17 @@ struct StoreItem: Identifiable, Codable {
     var rarity: ItemRarity
     var category: StoreCategory
 
+    init(id: UUID = UUID(), backendId: Int? = nil, name: String, description: String, price: Int, icon: String, rarity: ItemRarity, category: StoreCategory) {
+        self.id = id
+        self.backendId = backendId
+        self.name = name
+        self.description = description
+        self.price = price
+        self.icon = icon
+        self.rarity = rarity
+        self.category = category
+    }
+
     static let sampleData: [StoreItem] = [
         StoreItem(id: UUID(), name: "주가 조작기", description: "24시간 동안 특정 친구의 주가를 5% 올릴 수 있습니다", price: 25000, icon: "chart.line.uptrend.xyaxis", rarity: .epic, category: .item),
         StoreItem(id: UUID(), name: "스파이 스킬", description: "다른 사람의 포트폴리오를 24시간 동안 열람할 수 있습니다", price: 15000, icon: "eye.fill", rarity: .rare, category: .skill),
@@ -728,6 +764,67 @@ struct StoreItem: Identifiable, Codable {
         StoreItem(id: UUID(), name: "시간 정지", description: "마감일을 하루 연장할 수 있습니다", price: 50000, icon: "clock.arrow.circlepath", rarity: .legendary, category: .item),
         StoreItem(id: UUID(), name: "힐링 포션", description: "하락한 신뢰도를 10점 회복합니다", price: 8000, icon: "heart.fill", rarity: .common, category: .item),
     ]
+}
+
+// MARK: - TickerActivity (활동 내역)
+struct TickerActivity: Identifiable, Codable {
+    let id: UUID
+    let type: TickerActivityType
+    let description: String
+    let amount: Int
+    let time: String
+    let timestamp: Date
+
+    init(id: UUID = UUID(), type: TickerActivityType, description: String, amount: Int, time: String, timestamp: Date = Date()) {
+        self.id = id
+        self.type = type
+        self.description = description
+        self.amount = amount
+        self.time = time
+        self.timestamp = timestamp
+    }
+
+    var timeAgo: String {
+        let interval = Date().timeIntervalSince(timestamp)
+        if interval < 60 { return "방금 전" }
+        if interval < 3600 { return "\(Int(interval / 60))분 전" }
+        if interval < 86400 { return "\(Int(interval / 3600))시간 전" }
+        return "\(Int(interval / 86400))일 전"
+    }
+}
+
+enum TickerActivityType: String, Codable {
+    case buy = "매수"
+    case sell = "매도"
+    case dividend = "배당"
+    case listing = "상장"
+    case deposit = "입금"
+    case purchase = "구매"
+    case bet = "베팅"
+
+    var icon: String {
+        switch self {
+        case .buy: return "arrow.down.circle.fill"
+        case .sell: return "arrow.up.circle.fill"
+        case .dividend: return "gift.fill"
+        case .listing: return "paperplane.fill"
+        case .deposit: return "plus.circle.fill"
+        case .purchase: return "bag.fill"
+        case .bet: return "dice.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .buy: return .blue
+        case .sell: return .orange
+        case .dividend: return .green
+        case .listing: return .green
+        case .purchase: return .purple
+        case .bet: return .pink
+        case .deposit: return .orange
+        }
+    }
 }
 
 // MARK: - NewsPost
