@@ -450,37 +450,39 @@ struct PersonDetailView: View {
     }
 
     private func executeOrder() {
-        if orderType == .buy {
-            let success = appState.buyStock(
-                friendName: friend.name,
-                quantity: quantity,
-                pricePerShare: friend.currentPrice
-            )
-            if success {
-                alertTitle = "매수 완료"
-                alertMessage = "\(friend.name) \(quantity)주 매수 완료!"
-                showAlert = true
-                quantity = 1
+        Task {
+            if orderType == .buy {
+                let success = await appState.buyStock(
+                    friendName: friend.name,
+                    quantity: quantity,
+                    pricePerShare: friend.currentPrice
+                )
+                if success {
+                    alertTitle = "매수 완료"
+                    alertMessage = "\(friend.name) \(quantity)주 매수 완료!"
+                    showAlert = true
+                    quantity = 1
+                } else {
+                    alertTitle = "매수 실패"
+                    alertMessage = "잔고 부족 또는 매수 가능 수량 초과입니다."
+                    showAlert = true
+                }
             } else {
-                alertTitle = "매수 실패"
-                alertMessage = "잔고 부족 또는 매수 가능 수량 초과입니다."
-                showAlert = true
-            }
-        } else {
-            let success = appState.sellStock(
-                friendName: friend.name,
-                quantity: quantity,
-                pricePerShare: friend.currentPrice
-            )
-            if success {
-                alertTitle = "매도 완료"
-                alertMessage = "\(friend.name) \(quantity)주 매도 완료!"
-                showAlert = true
-                quantity = 1
-            } else {
-                alertTitle = "매도 실패"
-                alertMessage = "보유 수량이 부족합니다."
-                showAlert = true
+                let success = await appState.sellStock(
+                    friendName: friend.name,
+                    quantity: quantity,
+                    pricePerShare: friend.currentPrice
+                )
+                if success {
+                    alertTitle = "매도 완료"
+                    alertMessage = "\(friend.name) \(quantity)주 매도 완료!"
+                    showAlert = true
+                    quantity = 1
+                } else {
+                    alertTitle = "매도 실패"
+                    alertMessage = "보유 수량이 부족합니다."
+                    showAlert = true
+                }
             }
         }
     }

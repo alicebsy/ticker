@@ -3,12 +3,14 @@ import SwiftUI
 // MARK: - TodoItem (하루의 할 일 항목)
 struct TodoItem: Identifiable, Hashable, Codable {
     let id: UUID
+    var backendId: Int? // Backend ID
     var title: String
     var isCompleted: Bool
     var completedAt: Date?
 
-    init(id: UUID = UUID(), title: String, isCompleted: Bool = false, completedAt: Date? = nil) {
+    init(id: UUID = UUID(), backendId: Int? = nil, title: String, isCompleted: Bool = false, completedAt: Date? = nil) {
         self.id = id
+        self.backendId = backendId
         self.title = title
         self.isCompleted = isCompleted
         self.completedAt = completedAt
@@ -97,6 +99,7 @@ struct PriceHistoryPoint: Identifiable, Hashable, Codable {
 // MARK: - Holding (내가 보유한 타인 주식)
 struct Holding: Identifiable, Hashable {
     let id: UUID
+    var investmentId: Int? // Backend Investment ID
     var name: String
     var ticker: String
     var currentPrice: Double
@@ -219,6 +222,127 @@ struct LoginRequest: Codable {
     let password: String
 }
 
+struct InvestRequest: Codable {
+    let subjectUserId: Int
+    let quantity: Int
+}
+
+struct HeldStockDto: Codable, Identifiable {
+    let id: Int // Investment ID
+    let name: String
+    let profileImageUrl: String?
+    let currentPrice: Int
+    let priceChangeText: String
+    let profitLoss: Int
+    let profitLossRate: String
+    let quantity: Int
+    let holdingRatio: Int
+}
+
+struct HeldStocksResponse: Codable {
+    let totalValuation: Int
+    let totalPurchaseAmount: Int
+    let totalProfitLoss: Int
+    let totalReturnRate: String
+    let stocks: [HeldStockDto]
+}
+
+struct InvestmentSummaryDto: Codable, Identifiable {
+    let id: Int
+    let ownerName: String
+    let ownerImageUrl: String?
+    let currentValue: Int
+    let changePercent: String
+}
+
+struct SkillSummaryDto: Codable {
+    let name: String
+    let quantity: Int
+}
+
+struct DelistedSummaryDto: Codable, Identifiable {
+    var id: String { date + todoName }
+    let todoName: String
+    let date: String
+    let profitLoss: Int
+    let status: String
+}
+
+struct PortfolioResponse: Codable {
+    let totalAssets: Int
+    let cashBalance: Int
+    let marketCap: Int
+    let dailyChangePercent: String
+    let investingAmount: Int
+    let investments: [InvestmentSummaryDto]
+    let skills: [SkillSummaryDto]
+    let delistedHistory: [DelistedSummaryDto]
+}
+
+
+
+struct FriendRequestDto: Codable, Identifiable {
+    let id: Int // Request ID? Or User ID? Check Java. It says sending request ID.
+    // Wait, Java says FriendRequestDto has id. is it request ID or user id?
+    // "private Long id;" usually ID of the request entity.
+    let name: String
+    let imageUrl: String?
+    let status: String
+}
+
+struct WatchlistItemDto: Codable, Identifiable {
+    var id: Int { userId }
+    let userId: Int
+    let name: String
+    let imageUrl: String?
+    let currentPrice: Int
+    let changePercent: String
+    let chartData: [Int]
+    
+    enum CodingKeys: String, CodingKey {
+        case userId, name, imageUrl, currentPrice, changePercent, chartData
+    }
+}
+
+struct ListingRequest: Codable {
+    let name: String
+    let deadline: String // YYYY-MM-DD
+    let rewardPoints: Int?
+    let difficulty: String
+    let visibility: String
+}
+
+struct ListingResponse: Codable {
+    let myStockChart: StockChartDto
+    let listedTodos: [ListedTodoDto]
+}
+
+struct StockChartDto: Codable {
+    let currentPrice: Int
+    let changePercent: String
+    let status: String
+    let chartData: [ChartPointDto]
+}
+
+struct ChartPointDto: Codable {
+    let date: String
+    let price: Int
+}
+
+struct ListedTodoDto: Codable, Identifiable {
+    let id: Int
+    let name: String
+    let deadline: String
+    let reward: Int
+    let progress: Int
+}
+
+struct WatchlistResponse: Codable {
+    let sentRequests: [FriendRequestDto]
+    let receivedRequests: [FriendRequestDto]
+    let watchlistItems: [WatchlistItemDto]
+}
+
 struct LoginResponse: Codable {
     let id: Int
     let loginId: String
@@ -227,7 +351,92 @@ struct LoginResponse: Codable {
     let cashBalance: Int
     let marketCap: Int
     let totalAssets: Int
+    let stockPrice: Int
     let message: String
+}
+
+// MARK: - Casino
+struct CasinoGameResponse: Codable {
+    let availableFriends: [CasinoFriend]
+    let myBettingHistory: [BettingHistory]
+}
+
+struct CasinoFriend: Codable, Identifiable {
+    let id: Int
+    let name: String
+    let imageUrl: String?
+    let currentPrice: Int
+    let todayTodoCount: Int
+    let todayCompletedCount: Int
+}
+
+struct BettingHistory: Codable, Identifiable {
+    let id: Int
+    let targetName: String
+    let betAmount: Int
+    let betType: String
+    let result: String?
+    let profitLoss: Int?
+}
+
+struct PlaceBetData: Codable {
+    let targetUserId: Int
+    let betAmount: Int
+    let betType: String // "SUCCESS" or "FAIL"
+}
+
+// MARK: - Dark Market
+struct MarketResponse: Codable {
+    let items: [MarketItem]
+}
+
+struct MarketItem: Codable, Identifiable {
+    let id: Int
+    let name: String
+    let description: String
+    let price: Int
+    let stock: Int
+    let category: String
+}
+
+struct PurchaseData: Codable {
+    let itemId: Int
+    let quantity: Int
+}
+
+// MARK: - Notifications (Real-time)
+struct NotificationDto: Codable {
+    let type: String
+    let message: String
+    let fromUserId: Int?
+    let fromUserName: String?
+    let fromUserImageUrl: String?
+    let timestamp: String?
+    
+    // Stock update fields
+    let userId: Int?
+    let stockPrice: Int?
+    let marketCap: Int?
+    let totalAssets: Int?
+    
+    // Listing update fields
+    let todoId: Int?
+    let progress: Int?
+    let completed: Bool?
+    
+    // Investment fields
+    let remainingShares: Int?
+}
+
+enum NotificationType: String {
+    case friendRequest = "FRIEND_REQUEST"
+    case friendAccepted = "FRIEND_ACCEPTED"
+    case friendRejected = "FRIEND_REJECTED"
+    case stockPriceUpdated = "STOCK_PRICE_UPDATED"
+    case listingUpdated = "LISTING_UPDATED"
+    case investmentChanged = "INVESTMENT_CHANGED"
+    case betPlaced = "BET_PLACED"
+    case addedToWatchlist = "ADDED_TO_WATCHLIST"
 }
 
 /// 백엔드 GET /api/users/{id} 응답 (User 엔티티 직렬화)
@@ -246,6 +455,8 @@ struct UserResponse: Codable {
 // MARK: - FriendRequest
 struct FriendRequest: Identifiable, Hashable {
     let id: UUID
+    var requestId: Int? // Backend Request ID
+    var userId: Int?    // Backend User ID (requester)
     var name: String
     var avatarColor: Color
     var isSentByMe: Bool
@@ -262,6 +473,7 @@ struct FriendRequest: Identifiable, Hashable {
 // MARK: - Friend (유저 = 기업)
 struct Friend: Identifiable, Hashable {
     let id: UUID
+    var userId: Int = 0 // Backend User ID
     var name: String
     var ticker: String
     var currentPrice: Double       // 주당 가격
@@ -500,6 +712,7 @@ enum ItemRarity: String, Codable {
 // MARK: - StoreItem
 struct StoreItem: Identifiable, Codable {
     let id: UUID
+    var backendId: Int? // Backend ID
     var name: String
     var description: String
     var price: Int

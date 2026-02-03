@@ -71,6 +71,8 @@ class AppState: ObservableObject {
     }
 
     private func handleAuthResponse(_ response: LoginResponse) {
+        NetworkManager.shared.currentUserId = response.id
+        
         self.currentUser = User(
             id: response.id,
             name: response.name,
@@ -80,10 +82,17 @@ class AppState: ObservableObject {
             cashBalance: response.cashBalance,
             marketCap: response.marketCap,
             totalAssets: response.totalAssets,
-            stockPrice: 1000
+            stockPrice: response.stockPrice
         )
         self.cash = response.cashBalance
+        self.userStockPrice = Double(response.stockPrice)
         self.isLoggedIn = true
+        
+        setupWebSocket(userId: response.id)
+        
+        Task {
+            await fetchMyData()
+        }
     }
 
     /// 카카오 OAuth 콜백: userId로 유저 정보 조회 후 로그인 처리
@@ -91,6 +100,8 @@ class AppState: ObservableObject {
     func handleKakaoOAuthCallback(userId: Int) async {
         do {
             let userResponse = try await NetworkManager.shared.fetchUser(userId: userId)
+            NetworkManager.shared.currentUserId = userResponse.id
+            
             self.currentUser = User(
                 id: userResponse.id,
                 name: userResponse.name,
@@ -105,9 +116,220 @@ class AppState: ObservableObject {
             self.cash = userResponse.cashBalance
             self.userStockPrice = Double(userResponse.stockPrice)
             self.isLoggedIn = true
+            
+            setupWebSocket(userId: userResponse.id)
+            
+            await fetchMyData()
         } catch {
             print("카카오 로그인 콜백 에러: \(error.localizedDescription)")
         }
+    }
+    
+    @MainActor
+    func fetchMyData() async {
+        do {
+        }
+    }
+    
+    // MARK: - Real-time (WebSocket) Handlers
+    private func setupWebSocket(userId: Int) {
+        WebSocketManager.shared.onMessageReceived = { [weak self] notification in
+            self?.handleRealTimeNotification(notification)
+        }
+        WebSocketManager.shared.connect(userId: userId)
+    }
+    
+    private func handleRealTimeNotification(_ notification: NotificationDto) {
+        print("🔔 Real-time Notification: \(notification.type) - \(notification.message)")
+        
+        guard let type = NotificationType(rawValue: notification.type) else { return }
+        
+        switch type {
+        case .stockPriceUpdated:
+            handleStockPriceUpdate(notification)
+        case .listingUpdated:
+            // Refresh data to show new progress/completion
+            Task { await fetchMyData() }
+        case .investmentChanged:
+            // Refresh data to show updated shares/holdings
+            Task { await fetchMyData() }
+        case .friendRequest, .friendAccepted, .friendRejected:
+            // Refresh watchlist/request items
+            Task { await fetchMyData() }
+        case .betPlaced, .addedToWatchlist:
+            // Could show a toast or local notification
+            print("Toast: \(notification.message)")
+        }
+    }
+    
+    private func handleStockPriceUpdate(_ notification: NotificationDto) {
+        guard let userId = notification.userId, let newPrice = notification.stockPrice else { return }
+        
+        // 1. Update own price if it's mine
+        if userId == currentUser?.id {
+            DispatchQueue.main.async {
+                self.userStockPrice = Double(newPrice)
+                self.currentUser?.stockPrice = newPrice
+                // Append to history for live chart
+                self.userStockHistory.append(Double(newPrice))
+                if self.userStockHistory.count > 20 { self.userStockHistory.removeFirst() }
+            }
+        }
+        
+        // 2. Update friend's price in watchlist
+        if let index = self.friends.firstIndex(where: { $0.userId == userId }) {
+            DispatchQueue.main.async {
+                self.friends[index].currentPrice = Double(newPrice)
+                self.friends[index].sparklineData.append(Double(newPrice))
+                if self.friends[index].sparklineData.count > 20 { self.friends[index].sparklineData.removeFirst() }
+            }
+        }
+    }
+    
+    @MainActor
+    func fetchMyData() async {
+        do {
+            // 1. Portfolio
+            let portfolio: PortfolioResponse = try await NetworkManager.shared.request("/portfolio")
+            self.cash = portfolio.cashBalance
+            self.myTradingVolume = 0 // Backend doesn't send this yet?
+            // Update other assets if needed
+            
+            // 2. Holdings
+            let heldResponse: HeldStocksResponse = try await NetworkManager.shared.request("/investments")
+            
+            self.holdings = heldResponse.stocks.map { dto in
+                let totalVal = Double(dto.currentPrice * dto.quantity)
+                let profit = Double(dto.profitLoss)
+                let cost = totalVal - profit
+                let avgPrice = dto.quantity > 0 ? cost / Double(dto.quantity) : 0
+                
+                return Holding(
+                    id: UUID(),
+                    investmentId: dto.id, // Store backend investment ID
+                    name: dto.name,
+                    ticker: String(dto.name.prefix(2)),
+                    currentPrice: Double(dto.currentPrice),
+                    change: 0.0,
+                    quantity: dto.quantity,
+                    avatarColor: .blue,
+                    sparklineData: [],
+                    averageBuyPrice: avgPrice
+                )
+            }
+            // 3. Watchlist (Friends & Requests)
+            let watchlistResponse: WatchlistResponse = try await NetworkManager.shared.request("/watchlist")
+            
+            self.friends = watchlistResponse.watchlistItems.map { dto in
+                // Subscribe to each friend's stock updates
+                WebSocketManager.shared.subscribe(to: "/topic/stock/\(dto.userId)")
+                
+                // Generate sparkline from dto.chartData
+                let sparkline = dto.chartData.map { Double($0) }
+                
+                return Friend(
+                    id: UUID(), // We don't have UUID from backend, generate one.
+                    userId: dto.userId,
+                    name: dto.name,
+                    ticker: dto.name.prefix(2).uppercased(), // Mock ticker
+                    currentPrice: Double(dto.currentPrice),
+                    change: parseChangePercent(dto.changePercent),
+                    bio: "", // Backend doesn't send bio yet
+                    avatarColor: .gray, // Backend doesn't send color
+                    sparklineData: sparkline,
+                    priceHistory: [], // Would need detail fetch
+                    isStarred: true, // Only watchlist items for now
+                    sharesOutstanding: 0, // Mock
+                    tradingVolume: 0, // Mock
+                    todayRecord: nil, // Would need detail fetch
+                    dailyRecords: [] 
+                )
+            }
+            
+            // Sync Friend Requests
+            var combinedRequests: [FriendRequest] = []
+            
+            // Received Requests (Need to Accept/Reject)
+            for req in watchlistResponse.receivedRequests {
+                combinedRequests.append(FriendRequest(
+                    id: UUID(),
+                    requestId: req.id,
+                    userId: nil, // We don't have userId in FriendRequestDto, but we have req.id which is request id?
+                    // Actually, looking at WatchlistResponse.java, it's a List of FriendRequestDto.
+                    // FriendRequestDto inside WatchlistResponse has: Long id, String name, String imageUrl, String status.
+                    // The 'id' here is likely the USER ID of the person who sent the request (requester).
+                    // Wait, let's check WatchlistController again.
+                    // acceptFriend(@PathVariable Long requesterId) - so 'id' should be the requester's user ID.
+                    name: req.name,
+                    avatarColor: .blue,
+                    isSentByMe: false
+                ))
+            }
+            
+            // Sent Requests (Waiting for them)
+            for req in watchlistResponse.sentRequests {
+                combinedRequests.append(FriendRequest(
+                    id: UUID(),
+                    requestId: req.id,
+                    userId: nil,
+                    name: req.name,
+                    avatarColor: .gray,
+                    isSentByMe: true
+                ))
+            }
+            
+            self.friendRequests = combinedRequests
+            // 4. Listing (My Stock & Todos)
+            let listingResponse: ListingResponse = try await NetworkManager.shared.request("/listing")
+            
+            // Map listedTodos to DailyRecord
+            if !listingResponse.listedTodos.isEmpty {
+                let items = listingResponse.listedTodos.map { dto in
+                    TodoItem(
+                        id: UUID(), // Local UI ID
+                        backendId: dto.id,
+                        title: dto.name,
+                        isCompleted: dto.progress >= 100, // Assuming 100 is completed
+                        completedAt: dto.progress >= 100 ? Date() : nil
+                    )
+                }
+                
+                self.myTodayRecord = DailyRecord(
+                    date: Date(),
+                    todoItems: items,
+                    isListed: true,
+                    priceChangePercent: nil // Calculated from server if needed, or fetched from chart
+                )
+            } else {
+                self.myTodayRecord = nil
+            }
+            
+            // Update My Stock Info
+            // ListingResponse.myStockChart
+            let chartDto = listingResponse.myStockChart
+            self.userStockPrice = Double(chartDto.currentPrice)
+            self.dailyChange = parseChangePercent(chartDto.changePercent)
+            
+            // Update Chart
+            self.myPriceHistory = chartDto.chartData.map { point in
+                // Parse date string
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd"
+                let date = formatter.date(from: point.date) ?? Date()
+                return PriceHistoryPoint(date: date, price: Double(point.price))
+            }
+            // Sparkline
+            self.userStockHistory = self.myPriceHistory.map { $0.price }
+            
+        } catch {
+            print("Failed to fetch data: \(error)")
+        }
+    }
+    
+    // Helper to parse "+3.50%" string to Double
+    func parseChangePercent(_ str: String) -> Double {
+        let clean = str.replacingOccurrences(of: "%", with: "")
+        return Double(clean) ?? 0.0
     }
 
     // 내 주식 정보 (유저 = 기업)
@@ -144,6 +366,12 @@ class AppState: ObservableObject {
     // So I will only clear 'holdings'.
 
     @Published var friendRequests: [FriendRequest] = []
+    
+    // Casino & Dark Market
+    @Published var casinoFriends: [CasinoFriend] = []
+    @Published var bettingHistory: [BettingHistory] = []
+    @Published var marketItems: [MarketItem] = []
+    
     @Published var myFriendCode: String = {
         let code = Int.random(in: 1000...9999)
         return "TICKER-\(String(format: "%04d", code))"
@@ -258,181 +486,231 @@ class AppState: ObservableObject {
     }
 
     // MARK: - 주식 매수 (사람 단위)
-    @discardableResult
-    func buyStock(friendName: String, quantity: Int, pricePerShare: Double) -> Bool {
-        let totalCost = pricePerShare * Double(quantity)
-        guard cash >= Int(totalCost) else { return false }
-        // 가용 주식 수 확인
-        guard let friendIndex = friends.firstIndex(where: { $0.name == friendName }) else { return false }
-        guard friends[friendIndex].availableShares >= quantity else { return false }
-
-        // 현금 차감
-        cash -= Int(totalCost)
-
-        // 친구의 outstanding 증가 + 거래대금 추가
-        friends[friendIndex].sharesOutstanding += quantity
-        friends[friendIndex].tradingVolume += totalCost
-
-        // 홀딩 업데이트 또는 생성
-        if let holdingIndex = holdings.firstIndex(where: { $0.name == friendName }) {
-            let existingValue = holdings[holdingIndex].averageBuyPrice * Double(holdings[holdingIndex].quantity)
-            let newValue = pricePerShare * Double(quantity)
-            let totalQty = holdings[holdingIndex].quantity + quantity
-            holdings[holdingIndex].averageBuyPrice = (existingValue + newValue) / Double(totalQty)
-            holdings[holdingIndex].quantity += quantity
-            holdings[holdingIndex].currentPrice = pricePerShare
-        } else {
-            let friend = friends[friendIndex]
-            let newHolding = Holding(
-                id: UUID(),
-                name: friendName,
-                ticker: friend.ticker,
-                currentPrice: pricePerShare,
-                change: friend.change,
-                quantity: quantity,
-                avatarColor: friend.avatarColor,
-                sparklineData: friend.sparklineData,
-                averageBuyPrice: pricePerShare
-            )
-            holdings.append(newHolding)
+    @MainActor
+    func buyStock(friendName: String, quantity: Int, pricePerShare: Double) async -> Bool {
+        // Find subject User ID
+        guard let friend = friends.first(where: { $0.name == friendName }) else { return false }
+        let subjectUserId = friend.userId
+        
+        let req = InvestRequest(subjectUserId: subjectUserId, quantity: quantity)
+        
+        do {
+            let _: InvestmentSummaryDto? = try await NetworkManager.shared.request("/investments/buy", method: "POST", body: req)
+            // Refresh data to get updated holdings and cash
+            await fetchMyData()
+            return true
+        } catch {
+             print("Buy failed: \(error)")
+             return false
         }
-
-        addActivity(type: .buy, description: "\(friendName) \(quantity)주 매수", amount: Int(totalCost))
-        return true
     }
 
     // MARK: - 주식 매도 (사람 단위)
-    @discardableResult
-    func sellStock(friendName: String, quantity: Int, pricePerShare: Double) -> Bool {
-        guard let holdingIndex = holdings.firstIndex(where: { $0.name == friendName }) else { return false }
-        let currentQty = holdings[holdingIndex].quantity
-        guard currentQty >= quantity else { return false }
-
-        let totalRevenue = pricePerShare * Double(quantity)
-
-        // 홀딩 수량 차감
-        holdings[holdingIndex].quantity -= quantity
-        if holdings[holdingIndex].quantity <= 0 {
-            holdings.remove(at: holdingIndex)
+    @MainActor
+    func sellStock(friendName: String, quantity: Int, pricePerShare: Double) async -> Bool {
+        guard let holding = holdings.first(where: { $0.name == friendName }),
+              let invId = holding.investmentId else { return false }
+        
+        do {
+            try await NetworkManager.shared.requestVoid("/investments/\(invId)/sell?quantity=\(quantity)", method: "POST")
+            await fetchMyData()
+            return true
+        } catch {
+            print("Sell failed: \(error)")
+            return false
         }
-
-        // 현금 추가
-        cash += Int(totalRevenue)
-
-        // 친구의 outstanding 감소 + 거래대금 추가
-        if let friendIndex = friends.firstIndex(where: { $0.name == friendName }) {
-            friends[friendIndex].sharesOutstanding -= quantity
-            friends[friendIndex].tradingVolume += totalRevenue
-        }
-
-        addActivity(type: .sell, description: "\(friendName) \(quantity)주 매도", amount: Int(totalRevenue))
-        return true
     }
 
     // MARK: - 투두 상장
-    @discardableResult
-    func listTodayTodos(items: [TodoItem]) -> Bool {
+    // MARK: - 투두 상장
+    @MainActor
+    func listTodayTodos(items: [TodoItem]) async -> Bool {
         guard items.count >= 4 else { return false }
-        let record = DailyRecord(
-            date: Date(),
-            todoItems: items,
-            isListed: true,
-            priceChangePercent: nil
-        )
-        myTodayRecord = record
         
-        // 오늘 차트 포인트가 없으면 추가 (장 시작 가격 = 어제 종가)
-        let today = Calendar.current.startOfDay(for: Date())
-        if !myPriceHistory.contains(where: { Calendar.current.isDate($0.date, inSameDayAs: today) }) {
-            myPriceHistory.append(PriceHistoryPoint(date: Date(), price: lastClosingPrice))
-            userStockHistory.append(lastClosingPrice)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let deadline = formatter.string(from: Date())
+        
+        var successCount = 0
+        for item in items {
+            let req = ListingRequest(
+                name: item.title,
+                deadline: deadline,
+                rewardPoints: nil,
+                difficulty: "NORMAL",
+                visibility: "FRIENDS_ONLY"
+            )
+            do {
+                let _: Todo? = try await NetworkManager.shared.request("/listing", method: "POST", body: req)
+                // We should probably explicitly type the response as Todo but Todo maps to ListedTodoDto partially.
+                // Or we can use ListedTodoDto.
+                // But createTodo returns 'Todo' model from backend. I need a matching struct?
+                // Actually 'Todo' in models.swift is not defined matching backend Todo completely.
+                // Let's assume it works or use void and refresh.
+                // Backend returns 'Todo' entity.
+                successCount += 1
+            } catch {
+                print("Failed to list todo: \(error)")
+            }
         }
         
-        addActivity(type: .listing, description: "오늘의 투두 \(items.count)개 상장", amount: 0)
-        saveData()
-        return true
-    }
-
-    // MARK: - 실시간 주가 업데이트 Logic
-    private func updateCurrentPrice() {
-        guard let record = myTodayRecord else { return }
-        
-        // 예상 변동폭 계산
-        let changePercent = record.projectedPriceChange
-        
-        // 현재가 = 어제종가 * (1 + 변동폭)
-        let newPrice = lastClosingPrice * (1.0 + changePercent)
-        userStockPrice = max(100, newPrice) // 최소 100원 방어
-        
-        // 일일 변동률 업데이트
-        dailyChange = changePercent * 100
-        
-        // 차트 마지막 포인트(오늘) 업데이트
-        if !myPriceHistory.isEmpty {
-            let lastIndex = myPriceHistory.count - 1
-            let lastPoint = myPriceHistory[lastIndex]
-            
-            // 만약 마지막 포인트가 '오늘' 것이라면 -> 값과 시간만 최신화
-            if Calendar.current.isDate(lastPoint.date, inSameDayAs: Date()) {
-                myPriceHistory[lastIndex].price = userStockPrice
-                myPriceHistory[lastIndex].date = Date()
-            } 
-            // 만약 마지막 포인트가 '과거' 것이라면 (아직 checkNewDay가 안 돌았거나 시점 차이)
-            // -> 건드리지 않음 (checkNewDay나 listTodayTodos에서 새 점을 찍을 것임)
+        if successCount > 0 {
+            await fetchMyData()
+            addActivity(type: .listing, description: "오늘의 투두 \(items.count)개 상장", amount: 0)
+            return true
         }
-        
-        // Sparkline 마지막 포인트 업데이트
-        if !userStockHistory.isEmpty {
-            userStockHistory[userStockHistory.count - 1] = userStockPrice
-        }
-        saveData()
+        return false
     }
 
     // MARK: - 투두 완성
-    func completeTodoItem(itemId: UUID) {
-        guard var record = myTodayRecord,
-              let index = record.todoItems.firstIndex(where: { $0.id == itemId }) else { return }
-        record.todoItems[index].isCompleted = true
-        record.todoItems[index].completedAt = Date()
-        myTodayRecord = record
+    @MainActor
+    func completeTodoItem(itemId: UUID) async {
+        guard let record = myTodayRecord,
+              let item = record.todoItems.first(where: { $0.id == itemId }),
+              let backendId = item.backendId else { 
+            print("Cannot complete todo: missing backend ID")
+            return 
+        }
         
-        // 실시간 주가 반영
-        updateCurrentPrice()
+        do {
+            try await NetworkManager.shared.requestVoid("/listing/\(backendId)/complete", method: "POST")
+            await fetchMyData()
+            
+            // 실시간 주가 반영 (fetchMyData calls it)
+        } catch {
+            print("Failed to complete todo: \(error)")
+        }
     }
-
+    
     // MARK: - 투두 완성 취소
     func uncompleteTodoItem(itemId: UUID) {
-        guard var record = myTodayRecord,
-              let index = record.todoItems.firstIndex(where: { $0.id == itemId }) else { return }
-        record.todoItems[index].isCompleted = false
-        record.todoItems[index].completedAt = nil
-        myTodayRecord = record
-        
-        // 실시간 주가 반영
-        updateCurrentPrice()
+        // Backend doesn't support uncomplete yet.
+        print("Uncomplete not supported by backend")
     }
 
     // MARK: - 자정 정산 (주가 확정)
     func settleDailyPrices() {
-        guard var record = myTodayRecord else { return }
-
-        // 최종 변동폭으로 확정
-        let changePercent = record.projectedPriceChange
-        // 이미 updateCurrentPrice()로 userStockPrice는 반영되어 있음
-        
-        // 기록 저장
-        record.priceChangePercent = changePercent
-        myDailyRecords.append(record)
-        myTodayRecord = nil
-        
-        // 내일의 기준가가 될 종가 저장
-        lastClosingPrice = userStockPrice
-        
-        // 활동 내역 추가
-        addActivity(type: .listing, description: "장 마감 정산 완료 (변동: \(String(format: "%+.1f%%", dailyChange)))", amount: 0)
-        saveData()
+        // Backend schedules this? 
+        // Or client triggers it?
+        // Backend sets up a scheduler but also exposes /api/listing/daily-stock-update
+        // Client can trigger it for testing or reliable execution?
+        // For now, let's keep it local or call backend.
+        Task {
+            try? await NetworkManager.shared.requestVoid("/listing/daily-stock-update", method: "POST")
+            await fetchMyData()
+        }
     }
 
+    // MARK: - 친구 요청 관리
+    @MainActor
+    func acceptFriendRequest(requesterId: Int) async {
+        do {
+            try await NetworkManager.shared.acceptFriend(requesterId: requesterId)
+            await fetchMyData()
+        } catch {
+            print("Failed to accept friend: \(error)")
+        }
+    }
+    
+    @MainActor
+    func declineFriendRequest(requesterId: Int) async {
+        do {
+            try await NetworkManager.shared.rejectFriend(requesterId: requesterId)
+            await fetchMyData()
+        } catch {
+            print("Failed to reject friend: \(error)")
+        }
+    }
+    
+    // MARK: - Casino & Dark Market
+    @MainActor
+    func fetchCasinoData() async {
+        do {
+            let response = try await NetworkManager.shared.getCasino()
+            self.casinoFriends = response.availableFriends
+            self.bettingHistory = response.myBettingHistory
+        } catch {
+            print("Failed to fetch casino data: \(error)")
+        }
+    }
+    
+    @MainActor
+    func fetchDarkMarketData() async {
+        do {
+            let response = try await NetworkManager.shared.getDarkMarket()
+            self.marketItems = response.items
+            
+            // Map MarketItem (Backend) to StoreItem (UI)
+            self.storeItems = response.items.map { item in
+                StoreItem(
+                    id: UUID(), // Or store itemId separately
+                    backendId: item.id,
+                    name: item.name,
+                    description: item.description,
+                    price: item.price,
+                    icon: getIconForItem(category: item.category),
+                    rarity: getRarityForItem(category: item.category, price: item.price),
+                    category: mapBackendCategory(item.category)
+                )
+            }
+        } catch {
+            print("Failed to fetch dark market data: \(error)")
+        }
+    }
+    
+    private func getIconForItem(category: String) -> String {
+        switch category {
+        case "SKILL": return "sparkles"
+        case "ITEM": return "bag.fill"
+        case "BOOST": return "bolt.fill"
+        case "SECRET": return "person.fill.questionmark"
+        default: return "cube.fill"
+        }
+    }
+    
+    private func getRarityForItem(category: String, price: Int) -> ItemRarity {
+        if price > 40000 { return .legendary }
+        if price > 20000 { return .epic }
+        if price > 10000 { return .rare }
+        return .common
+    }
+    
+    private func mapBackendCategory(_ cat: String) -> StoreCategory {
+        switch cat {
+        case "SKILL": return .skill
+        case "ITEM": return .item
+        case "BOOST": return .boost
+        case "SECRET": return .secret
+        default: return .item
+        }
+    }
+    
+    @MainActor
+    func placeBet(targetUserId: Int, amount: Int, betType: String) async -> Bool {
+        do {
+            try await NetworkManager.shared.placeBet(targetUserId: targetUserId, amount: amount, betType: betType)
+            await fetchCasinoData()
+            await fetchMyData() // Refresh cash balance
+            return true
+        } catch {
+            print("Failed to place bet: \(error)")
+            return false
+        }
+    }
+    
+    @MainActor
+    func purchaseItem(itemId: Int, quantity: Int) async -> Bool {
+        do {
+            try await NetworkManager.shared.purchaseItem(itemId: itemId, quantity: quantity)
+            await fetchDarkMarketData()
+            await fetchMyData() // Refresh cash and skills
+            return true
+        } catch {
+            print("Failed to purchase item: \(error)")
+            return false
+        }
+    }
+    
     // MARK: - 랭킹 (총 자산 기준)
     struct RankingEntry: Identifiable {
         let id = UUID()

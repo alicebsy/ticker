@@ -199,10 +199,12 @@ struct ListingView: View {
             VStack(spacing: 6) {
                 ForEach(record.todoItems) { item in
                     TodoItemRow(item: item) {
-                        if item.isCompleted {
-                            appState.uncompleteTodoItem(itemId: item.id)
-                        } else {
-                            appState.completeTodoItem(itemId: item.id)
+                        Task {
+                            if item.isCompleted {
+                                appState.uncompleteTodoItem(itemId: item.id)
+                            } else {
+                                await appState.completeTodoItem(itemId: item.id)
+                            }
                         }
                     }
                 }
@@ -402,8 +404,10 @@ struct NewTodoListingForm: View {
             // 상장하기 버튼
             Button {
                 if validTodos.count >= 4 {
-                    let items = validTodos.map { TodoItem(title: $0) }
-                    appState.listTodayTodos(items: items)
+                    Task {
+                        let items = validTodos.map { TodoItem(title: $0) }
+                        await appState.listTodayTodos(items: items)
+                    }
                 } else {
                     showMinimumAlert = true
                 }

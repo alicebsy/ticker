@@ -4,18 +4,22 @@ struct CasinoView: View {
     @EnvironmentObject var appState: AppState
     @State private var selectedGame: CasinoGame = .friendBet
     @State private var betAmount = ""
-    @State private var selectedFriend: Friend?
+    @State private var selectedFriendId: Int?
     @State private var selectedBetType: BetType = .success
     @State private var showInsufficientFundsAlert = false
     @State private var showBetSuccessAlert = false
     @State private var alertMessage = ""
     
+    var selectedFriend: CasinoFriend? {
+        appState.casinoFriends.first(where: { $0.id == selectedFriendId })
+    }
+
     enum CasinoGame: String, CaseIterable {
         case friendBet = "친구 베팅"
         case prophecy = "예언"
         case roulette = "룰렛"
     }
-    
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
@@ -40,6 +44,11 @@ struct CasinoView: View {
             }
             .padding(24)
         }
+        .onAppear {
+            Task {
+                await appState.fetchCasinoData()
+            }
+        }
         .navigationTitle("카지노")
         .alert("잔고 부족", isPresented: $showInsufficientFundsAlert) {
             Button("확인", role: .cancel) {}
@@ -55,7 +64,7 @@ struct CasinoView: View {
 
     // MARK: - Bet Action
     private func placeBetAction() {
-        guard let friend = selectedFriend else { return }
+        guard let friendId = selectedFriendId else { return }
         guard let amount = Int(betAmount), amount > 0 else { return }
 
         if amount > appState.cash {
@@ -64,16 +73,18 @@ struct CasinoView: View {
             return
         }
 
-        let success = appState.placeBet(amount: amount, target: friend.name, betType: selectedBetType)
-        if success {
-            alertMessage = "\(friend.name)에게 '\(selectedBetType.rawValue)' \(formatCasinoPrice(amount))P 베팅 완료!"
-            showBetSuccessAlert = true
-            // 초기화
-            betAmount = ""
-            selectedFriend = nil
-        } else {
-            alertMessage = "베팅에 실패했습니다. 잔고를 확인해주세요."
-            showInsufficientFundsAlert = true
+        Task {
+            let success = await appState.placeBet(targetUserId: friendId, amount: amount, betType: selectedBetType == .success ? "SUCCESS" : "FAIL")
+            if success {
+                alertMessage = "\(selectedFriend?.name ?? "친구")에게 '\(selectedBetType.rawValue)' \(formatCasinoPrice(amount))P 베팅 완료!"
+                showBetSuccessAlert = true
+                // 초기화
+                betAmount = ""
+                selectedFriendId = nil
+            } else {
+                alertMessage = "베팅에 실패했습니다. 잔고를 확인해주세요."
+                showInsufficientFundsAlert = true
+            }
         }
     }
 
@@ -143,11 +154,11 @@ struct CasinoView: View {
                 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
-                        ForEach(appState.friends) { friend in
+                        ForEach(appState.casinoFriends) { friend in
                             FriendBetCard(
-                                friend: friend,
-                                isSelected: selectedFriend?.id == friend.id,
-                                action: { selectedFriend = friend }
+                                name: friend.name,
+                                isSelected: selectedFriendId == friend.id,
+                                action: { selectedFriendId = friend.id }
                             )
                         }
                     }
@@ -333,30 +344,54 @@ struct CasinoView: View {
             Text("최근 베팅 내역")
                 .font(.headline)
             
-            VStack(spacing: 8) {
-                RecentBetRow(target: "김철수", type: .success, amount: 10000, result: .win, profit: 8000)
-                RecentBetRow(target: "이영희", type: .failure, amount: 5000, result: .lose, profit: -5000)
-                RecentBetRow(target: "박지민", type: .success, amount: 20000, result: .pending, profit: 0)
+            if appState.bettingHistory.isEmpty {
+                Text("최근 내역이 없습니다")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(appState.bettingHistory) { bet in
+                        RecentBetRow(
+                            target: bet.targetName,
+                            type: bet.betType == "SUCCESS" ? .success : .failure,
+                            amount: bet.betAmount,
+                            result: parseBetResult(bet.result),
+                            profit: bet.profitLoss ?? 0
+                        )
+                    }
+                }
             }
+        }
+    }
+    
+    private func parseBetResult(_ result: String?) -> RecentBetRow.BetResult {
+        guard let result = result else { return .pending }
+        switch result {
+        case "WIN": return .win
+        case "LOSE": return .lose
+        default: return .pending
         }
     }
 }
 
 // MARK: - Friend Bet Card
 struct FriendBetCard: View {
-    let friend: Friend
+    let name: String
+    var color: Color = .blue
     let isSelected: Bool
     let action: () -> Void
     
     var body: some View {
         Button(action: action) {
             VStack(spacing: 8) {
-                AvatarView(name: friend.name, color: friend.avatarColor, size: 50)
+                AvatarView(name: name, color: color, size: 50)
                 
-                Text(friend.name)
+                Text(name)
                     .font(.caption.weight(.medium))
                 
-                Text(friend.ticker)
+                Text("TICKER") // Mock
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

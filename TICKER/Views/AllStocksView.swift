@@ -311,75 +311,71 @@ struct AllStocksView: View {
     // MARK: - Actions
     private func performCodeSearch() {
         guard !searchCode.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-
-        let mockResults: [Friend] = [
-            Friend(
-                id: UUID(),
-                name: "한서연",
-                ticker: "SEOYEON",
-                currentPrice: 1100,
-                change: 4.2,
-                bio: "대학원생",
-                avatarColor: .mint,
-                sparklineData: [1000, 1030, 1060, 1080, 1100],
-                priceHistory: Friend.generateSamplePriceHistory(basePrice: 1100),
-                sharesOutstanding: 5,
-                tradingVolume: 5500,
-                todayRecord: DailyRecord(
-                    date: Date(),
-                    todoItems: [
-                        TodoItem(title: "졸업 논문 작성", isCompleted: true),
-                        TodoItem(title: "세미나 참석", isCompleted: false),
-                        TodoItem(title: "운동", isCompleted: false),
-                        TodoItem(title: "영어 공부", isCompleted: false),
-                    ],
-                    isListed: true
-                ),
-                dailyRecords: Friend.generateSampleDailyRecords()
-            ),
-        ]
-
-        if searchCode.count >= 4 {
-            searchResult = mockResults.first
-        } else {
-            searchResult = nil
-        }
-        withAnimation(.easeInOut(duration: 0.2)) {
-            showSearchResult = true
+        
+        Task {
+            do {
+                let users: [User] = try await NetworkManager.shared.searchUsers(query: searchCode)
+                if let user = users.first {
+                    // Convert User to Friend for display
+                    searchResult = Friend(
+                        id: UUID(),
+                        userId: user.id,
+                        name: user.name,
+                        ticker: user.name.prefix(2).uppercased(),
+                        currentPrice: Double(user.stockPrice),
+                        change: 0.0,
+                        bio: "",
+                        avatarColor: .blue,
+                        sparklineData: [],
+                        priceHistory: [],
+                        isStarred: false,
+                        sharesOutstanding: 0,
+                        tradingVolume: 0,
+                        todayRecord: nil,
+                        dailyRecords: []
+                    )
+                } else {
+                    searchResult = nil
+                }
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showSearchResult = true
+                }
+            } catch {
+                print("Search failed: \(error)")
+                searchResult = nil
+                showSearchResult = true
+            }
         }
     }
 
     private func addFriend(_ friend: Friend) {
-        let request = FriendRequest(id: UUID(), name: friend.name, avatarColor: friend.avatarColor, isSentByMe: true)
-        appState.friendRequests.append(request)
-        withAnimation {
-            showSearchResult = false
-            searchCode = ""
+        Task {
+            do {
+                try await NetworkManager.shared.addFriend(friendCode: searchCode)
+                // Refresh watchlist to get updated friend requests
+                await appState.fetchMyData()
+                withAnimation {
+                    showSearchResult = false
+                    searchCode = ""
+                }
+            } catch {
+                print("Add friend failed: \(error)")
+            }
         }
     }
 
     private func acceptFriendRequest(_ request: FriendRequest) {
-        appState.friendRequests.removeAll { $0.id == request.id }
-        let newFriend = Friend(
-            id: UUID(),
-            name: request.name,
-            ticker: String(request.name.prefix(2)).uppercased(),
-            currentPrice: 1000,
-            change: Double.random(in: -5...8),
-            bio: "",
-            avatarColor: request.avatarColor == .gray ? [Color.blue, .pink, .orange, .green, .purple, .mint].randomElement()! : request.avatarColor,
-            sparklineData: (0..<10).map { _ in Double.random(in: 800...1200) },
-            priceHistory: Friend.generateSamplePriceHistory(basePrice: 1000),
-            sharesOutstanding: 0,
-            tradingVolume: 0,
-            todayRecord: nil,
-            dailyRecords: []
-        )
-        appState.friends.append(newFriend)
+        guard let requesterId = request.requestId else { return }
+        Task {
+            await appState.acceptFriendRequest(requesterId: requesterId)
+        }
     }
 
     private func declineFriendRequest(_ request: FriendRequest) {
-        appState.friendRequests.removeAll { $0.id == request.id }
+        guard let requesterId = request.requestId else { return }
+        Task {
+            await appState.declineFriendRequest(requesterId: requesterId)
+        }
     }
 }
 

@@ -32,6 +32,11 @@ struct StoreView: View {
             }
             .padding(24)
         }
+        .onAppear {
+            Task {
+                await appState.fetchDarkMarketData()
+            }
+        }
         .navigationTitle("암시장")
         .sheet(item: $selectedItem) { item in
             ItemDetailSheet(item: item, onPurchase: {
@@ -129,18 +134,22 @@ struct StoreView: View {
     
     // MARK: - Purchase Logic
     private func purchaseItem(_ item: StoreItem) {
-        let success = appState.purchaseStoreItem(item: item)
-        if success {
-            alertMessage = "'\(item.name)' 구매 완료! (\(item.price)P 차감)"
-            selectedItem = nil
-            showPurchaseSuccessAlert = true
-        } else {
-            let formatter = NumberFormatter()
-            formatter.numberStyle = .decimal
-            let cashStr = formatter.string(from: NSNumber(value: Int(appState.cash))) ?? "0"
-            alertMessage = "보유 현금(\(cashStr)P)이 부족합니다.\n필요 금액: \(item.price)P"
-            selectedItem = nil
-            showInsufficientFundsAlert = true
+        guard let backendId = item.backendId else { return }
+        
+        Task {
+            let success = await appState.purchaseItem(itemId: backendId, quantity: 1)
+            if success {
+                alertMessage = "'\(item.name)' 구매 완료! (\(item.price)P 차감)"
+                selectedItem = nil
+                showPurchaseSuccessAlert = true
+            } else {
+                let formatter = NumberFormatter()
+                formatter.numberStyle = .decimal
+                let cashStr = formatter.string(from: NSNumber(value: Int(appState.cash))) ?? "0"
+                alertMessage = "구매에 실패했습니다. 잔고를 확인해주세요.\n현재 잔액: \(cashStr)P\n필요 금액: \(item.price)P"
+                selectedItem = nil
+                showInsufficientFundsAlert = true
+            }
         }
     }
 

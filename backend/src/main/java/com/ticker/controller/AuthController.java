@@ -37,20 +37,19 @@ public class AuthController {
         if (userRepository.existsByLoginId(request.getLoginId())) {
             return ResponseEntity.badRequest().body(Map.of(
                     "error", "DUPLICATE_LOGIN_ID",
-                    "message", "이미 사용 중인 아이디입니다"
-            ));
+                    "message", "이미 사용 중인 아이디입니다"));
         }
 
         User user = User.builder()
                 .loginId(request.getLoginId())
-                .password(request.getPassword())  // TODO: 실서비스에서는 BCrypt 암호화 필수
+                .password(request.getPassword()) // TODO: 실서비스에서는 BCrypt 암호화 필수
                 .name(request.getName())
                 .profileImageUrl(request.getProfileImageUrl())
                 .friendCode(watchlistService.generateUniqueFriendCode())
-                .cashBalance(100_000L)   // 보유 자산 초기 10만원
-                .marketCap(100_000L)     // 내 가치 초기 10만원
-                .totalAssets(200_000L)   // 총 자산
-                .stockPrice(1000L)       // 1주당 1000원
+                .cashBalance(100_000L) // 보유 자산 초기 10만원
+                .marketCap(100_000L) // 내 가치 초기 10만원
+                .totalAssets(200_000L) // 총 자산
+                .stockPrice(1000L) // 1주당 1000원
                 .build();
 
         User saved = userRepository.save(user);
@@ -64,8 +63,7 @@ public class AuthController {
                 "marketCap", saved.getMarketCap(),
                 "totalAssets", saved.getTotalAssets(),
                 "stockPrice", saved.getStockPrice(),
-                "message", "회원가입이 완료되었습니다"
-        ));
+                "message", "회원가입이 완료되었습니다"));
     }
 
     /**
@@ -79,8 +77,7 @@ public class AuthController {
                     if (!request.getPassword().equals(user.getPassword())) {
                         return ResponseEntity.status(401).body(Map.of(
                                 "error", "INVALID_PASSWORD",
-                                "message", "비밀번호가 일치하지 않습니다"
-                        ));
+                                "message", "비밀번호가 일치하지 않습니다"));
                     }
 
                     return ResponseEntity.ok(Map.of(
@@ -92,13 +89,11 @@ public class AuthController {
                             "marketCap", user.getMarketCap(),
                             "totalAssets", user.getTotalAssets(),
                             "stockPrice", user.getStockPrice(),
-                            "message", "로그인 성공"
-                    ));
+                            "message", "로그인 성공"));
                 })
                 .orElse(ResponseEntity.status(404).body(Map.of(
                         "error", "USER_NOT_FOUND",
-                        "message", "존재하지 않는 아이디입니다"
-                )));
+                        "message", "존재하지 않는 아이디입니다")));
     }
 
     /**
@@ -125,8 +120,11 @@ public class AuthController {
                         "name", user.getName(),
                         "loginId", user.getLoginId(),
                         "profileImageUrl", user.getProfileImageUrl() != null ? user.getProfileImageUrl() : "",
-                        "oauthProvider", user.getOauthProvider() != null ? user.getOauthProvider() : ""
-                )))
+                        "cashBalance", user.getCashBalance(),
+                        "marketCap", user.getMarketCap(),
+                        "totalAssets", user.getTotalAssets(),
+                        "stockPrice", user.getStockPrice(),
+                        "oauthProvider", user.getOauthProvider() != null ? user.getOauthProvider() : "")))
                 .orElse(ResponseEntity.status(404).build());
     }
 
@@ -138,7 +136,6 @@ public class AuthController {
     public ResponseEntity<Map<String, String>> kakaoLoginUrl() {
         return ResponseEntity.ok(Map.of(
                 "url", "/oauth2/authorization/kakao",
-                "description", "이 URL로 이동하면 카카오 로그인 화면이 표시됩니다"
-        ));
+                "description", "이 URL로 이동하면 카카오 로그인 화면이 표시됩니다"));
     }
 }
