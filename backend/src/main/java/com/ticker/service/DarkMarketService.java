@@ -11,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -28,6 +27,7 @@ public class DarkMarketService {
     private final UserRepository userRepository;
     private final UserSkillRepository userSkillRepository;
     private final InvestmentRepository investmentRepository;
+    private final ActivityService activityService;
 
     /**
      * 암시장 화면 데이터 조회
@@ -98,6 +98,7 @@ public class DarkMarketService {
                     .build();
             userSkillRepository.save(us);
         }
+        activityService.addActivity(userId, "PURCHASE", "'" + item.getName() + "' 구매", cost);
     }
 
     private List<DarkMarketResponse.MarketItemDto> toMarketItemDtos(List<MarketItem> items) {

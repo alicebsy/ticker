@@ -28,6 +28,7 @@ public class InvestmentService {
     private final InvestmentRepository investmentRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final ActivityService activityService;
 
     @Transactional(readOnly = true)
     public HeldStocksResponse getHeldStocks(Long userId) {
@@ -136,6 +137,7 @@ public class InvestmentService {
 
         int remainingShares = SELLABLE_SHARES_PER_USER - (int) investmentRepository.sumQuantityBySubjectUserId(subjectUser.getId());
         notificationService.sendInvestmentChange(subjectUser.getId(), "주식 매수가 체결되었습니다.", remainingShares);
+        activityService.addActivity(userId, "BUY", subjectUser.getName() + " " + quantity + "주 매수", cost);
 
         return investment;
     }
@@ -169,5 +171,6 @@ public class InvestmentService {
         }
         int remainingShares = SELLABLE_SHARES_PER_USER - (int) investmentRepository.sumQuantityBySubjectUserId(subjectUser.getId());
         notificationService.sendInvestmentChange(subjectUser.getId(), "주식 매도가 체결되었습니다.", remainingShares);
+        activityService.addActivity(userId, "SELL", subjectUser.getName() + " " + qty + "주 매도", proceeds);
     }
 }

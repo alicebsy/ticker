@@ -63,6 +63,7 @@ public class AuthController {
                 "cashBalance", saved.getCashBalance(),
                 "marketCap", saved.getMarketCap(),
                 "totalAssets", saved.getTotalAssets(),
+                "stockPrice", saved.getStockPrice(),
                 "message", "회원가입이 완료되었습니다"
         ));
     }
@@ -90,6 +91,7 @@ public class AuthController {
                             "cashBalance", user.getCashBalance(),
                             "marketCap", user.getMarketCap(),
                             "totalAssets", user.getTotalAssets(),
+                            "stockPrice", user.getStockPrice(),
                             "message", "로그인 성공"
                     ));
                 })

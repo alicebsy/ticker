@@ -16,4 +16,7 @@ public interface BetRepository extends JpaRepository<Bet, Long> {
     List<Bet> findByBettorIdWithTodoAndOwner(Long bettorId);
 
     List<Bet> findByBettorIdAndStatus(Long bettorId, BetStatus status);
+
+    /** 해당 할 일에 걸린 진행 중인 베팅 (정산용) */
+    List<Bet> findByTodo_IdAndStatus(Long todoId, BetStatus status);
 }

@@ -22,6 +22,8 @@ public class DataLoader implements CommandLineRunner {
     private final MarketItemRepository marketItemRepository;
     private final StockPriceHistoryRepository stockPriceHistoryRepository;
     private final WatchlistService watchlistService;
+    private final NewsPostRepository newsPostRepository;
+    private final NewsCommentRepository newsCommentRepository;
 
     @Override
     public void run(String... args) {
@@ -185,5 +187,44 @@ public class DataLoader implements CommandLineRunner {
                 special1, special2,
                 icon1, icon2
         ));
+
+        // 뉴스 샘플 글 (꼰지르기/예측 스타일)
+        NewsPost post1 = NewsPost.builder()
+                .author(user1)
+                .title("강예서 어제 치킨 먹었어요")
+                .content("강예서 어제 치킨 먹었어요. 오늘 운동 안 갈 거라고 예측해봅니다. 주가 하락 베팅 각입니다.")
+                .category(NewsCategory.ANALYSIS)
+                .likes(23)
+                .anonymous(false)
+                .build();
+        NewsPost post2 = NewsPost.builder()
+                .author(user2)
+                .title("박준혁 주가 급등 예상")
+                .content("박준혁 오늘 새벽 5시에 '내일 6시 기상' 투두 올려놨는데 이미 3일 연속 실패한 그 투두예요. 오늘은 진짜 할 거 같아서 성공 베팅 넣었습니다.")
+                .category(NewsCategory.ANALYSIS)
+                .likes(41)
+                .anonymous(false)
+                .build();
+        NewsPost post3 = NewsPost.builder()
+                .author(user3)
+                .title("이지은 한강 조깅 3일차")
+                .content("이지은 한강 조깅 3일차 달성 중. 내일 비 온대요. 4일차 실패 예측해서 실패 쪽에 5만P 걸었어요 ㅋㅋ")
+                .category(NewsCategory.FREE)
+                .likes(18)
+                .anonymous(false)
+                .build();
+        NewsPost post4 = NewsPost.builder()
+                .author(user4)
+                .title("최서연 '책 한 권 읽기' 투두")
+                .content("최서연이 '이번 주 책 한 권 읽기' 상장해놨는데 아직 3페이지라고 합니다. 저 내일 주가 떡락 예상... 실패 베팅 추천드려요.")
+                .category(NewsCategory.DISCUSSION)
+                .likes(33)
+                .anonymous(false)
+                .build();
+        newsPostRepository.saveAll(List.of(post1, post2, post3, post4));
+        NewsComment c1 = NewsComment.builder().post(post1).author(user2).content("저도 치킨 먹으면 다음날 운동 100% 스킵해요 ㅋㅋ").build();
+        NewsComment c2 = NewsComment.builder().post(post1).author(user3).content("강예서 주가 오늘 털렸다던데").build();
+        NewsComment c3 = NewsComment.builder().post(post2).author(user4).content("박준혁 알람 5개 맞춰놨대요 진짜 할 듯").build();
+        newsCommentRepository.saveAll(List.of(c1, c2, c3));
     }
 }

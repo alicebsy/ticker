@@ -26,6 +26,8 @@ public class ListingService {
     private final UserRepository userRepository;
     private final StockPriceHistoryRepository stockPriceHistoryRepository;
     private final NotificationService notificationService;
+    private final ActivityService activityService;
+    private final CasinoService casinoService;
 
     /**
      * 신규 상장 - 할 일 등록
@@ -58,6 +60,7 @@ public class ListingService {
 
         Todo saved = todoRepository.save(todo);
         notificationService.sendListingUpdate(owner.getId(), saved.getId(), 0, false);
+        activityService.addActivity(userId, "LISTING", "오늘의 투두 상장", 0L);
         return saved;
     }
 
@@ -152,7 +155,8 @@ public class ListingService {
 
         // 완료 체크 시 그래프·목록 실시간 반영 (다른 사람들 화면에도 바로 반영)
         notificationService.sendListingUpdate(todo.getOwner().getId(), todoId, 100, true);
-        // TODO: 투자자들에게 보상/손실 분배 로직
+        // 해당 할 일에 걸린 베팅 정산 (성공 예측 → 적중 시 배당 지급)
+        casinoService.settleBetsForTodo(todoId, true);
     }
 
     private LocalDate getFromDateByPeriod(String period) {
