@@ -29,7 +29,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
-                                        Authentication authentication) throws IOException, ServletException {
+            Authentication authentication) throws IOException, ServletException {
         Object principal = authentication.getPrincipal();
         Long userId = null;
 
@@ -47,6 +47,33 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         }
 
         log.info("OAuth2 로그인 성공, userId={}, redirect={}", userId, targetUrl);
-        response.sendRedirect(targetUrl);
+
+        // redirectUri가 "ticker" 스킴인 경우(앱) HTML 랜딩 페이지 제공
+        if (targetUrl.startsWith("ticker://")) {
+            response.setContentType("text/html;charset=UTF-8");
+            response.getWriter().write(
+                    "<!DOCTYPE html>" +
+                            "<html>" +
+                            "<head>" +
+                            "  <meta charset='UTF-8'>" +
+                            "  <meta name='viewport' content='width=device-width, initial-scale=1.0'>" +
+                            "  <title>로그인 성공</title>" +
+                            "</head>" +
+                            "<body style='text-align: center; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; padding-top: 50px;'>"
+                            +
+                            "  <h2>로그인 완료</h2>" +
+                            "  <p>Ticker 앱으로 돌아가는 중입니다...</p>" +
+                            "  <p>자동으로 이동하지 않으면 아래 버튼을 눌러주세요.</p>" +
+                            "  <a href='" + targetUrl
+                            + "' style='display: inline-block; padding: 12px 24px; background-color: #00C73C; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 20px;'>앱 열기</a>"
+                            +
+                            "  <script>" +
+                            "    setTimeout(function() { window.location.href = '" + targetUrl + "'; }, 100);" +
+                            "  </script>" +
+                            "</body>" +
+                            "</html>");
+        } else {
+            response.sendRedirect(targetUrl);
+        }
     }
 }

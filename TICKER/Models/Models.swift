@@ -1,7 +1,7 @@
 import SwiftUI
 
 // MARK: - TodoItem (하루의 할 일 항목)
-struct TodoItem: Identifiable, Hashable {
+struct TodoItem: Identifiable, Hashable, Codable {
     let id: UUID
     var title: String
     var isCompleted: Bool
@@ -24,7 +24,7 @@ struct TodoItem: Identifiable, Hashable {
 }
 
 // MARK: - DailyRecord (하루의 투두 기록)
-struct DailyRecord: Identifiable, Hashable {
+struct DailyRecord: Identifiable, Hashable, Codable {
     let id: UUID
     var date: Date
     var todoItems: [TodoItem]
@@ -82,7 +82,7 @@ struct DailyRecord: Identifiable, Hashable {
 }
 
 // MARK: - PriceHistoryPoint (차트용 가격 이력)
-struct PriceHistoryPoint: Identifiable, Hashable {
+struct PriceHistoryPoint: Identifiable, Hashable, Codable {
     let id: UUID
     var date: Date
     var price: Double
@@ -473,7 +473,7 @@ struct Friend: Identifiable, Hashable {
 }
 
 // MARK: - StoreCategory
-enum StoreCategory: String, CaseIterable {
+enum StoreCategory: String, CaseIterable, Codable {
     case skill = "스킬"
     case item = "아이템"
     case boost = "부스트"
@@ -481,7 +481,7 @@ enum StoreCategory: String, CaseIterable {
 }
 
 // MARK: - ItemRarity
-enum ItemRarity: String {
+enum ItemRarity: String, Codable {
     case common = "일반"
     case rare = "레어"
     case epic = "에픽"
@@ -498,7 +498,7 @@ enum ItemRarity: String {
 }
 
 // MARK: - StoreItem
-struct StoreItem: Identifiable {
+struct StoreItem: Identifiable, Codable {
     let id: UUID
     var name: String
     var description: String
@@ -647,7 +647,7 @@ struct NewsComment: Identifiable, Hashable {
 }
 
 // MARK: - NewsCategory
-enum NewsCategory: String, CaseIterable {
+enum NewsCategory: String, CaseIterable, Codable {
     case all = "전체"
     case free = "자유"
     case analysis = "분석"

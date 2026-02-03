@@ -13,7 +13,6 @@ spring:
             scope:
               - profile_nickname
               - profile_image
-              - account_email
             client-name: Kakao
             authorization-grant-type: authorization_code
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"

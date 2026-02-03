@@ -10,7 +10,7 @@ struct HumanStockMarketApp: App {
                 .environmentObject(appState)
                 .frame(minWidth: 1000, minHeight: 700)
                 .onOpenURL { url in
-                    // ticker://oauth?userId=123 형태로 콜백
+                    print("🚀 앱이 URL을 받았습니다: \(url.absoluteString)")
                     handleOAuthCallback(url: url)
                 }
         }
@@ -18,23 +18,29 @@ struct HumanStockMarketApp: App {
         .commands {
             SidebarCommands()
         }
-
-        Settings {
-            SettingsView()
-        }
+        // WindowGroup 레벨에서 URL 처리 (더 안정적)
+        .handlesExternalEvents(matching: Set(arrayLiteral: "ticker")) // macOS 전용 팁
     }
 
     private func handleOAuthCallback(url: URL) {
+        // ticker://oauth?userId=33
+        print("🔍 URL 스킴 확인: \(url.scheme ?? "nil"), 호스트: \(url.host ?? "nil")")
+        
         guard url.scheme == "ticker",
               url.host == "oauth",
-              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              let userIdString = components.queryItems?.first(where: { $0.name == "userId" })?.value,
-              let userId = Int(userIdString) else {
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            print("❌ 잘못된 URL 형식입니다.")
             return
         }
-
-        Task {
-            await appState.handleKakaoOAuthCallback(userId: userId)
+        
+        if let userIdString = components.queryItems?.first(where: { $0.name == "userId" })?.value,
+           let userId = Int(userIdString) {
+            print("✅ 유저 ID 파싱 성공: \(userId). 로그인 처리를 시작합니다.")
+            Task {
+                await appState.handleKakaoOAuthCallback(userId: userId)
+            }
+        } else {
+            print("❌ userId를 찾을 수 없거나 형식이 잘못되었습니다.")
         }
     }
 }
@@ -106,6 +112,8 @@ class AppState: ObservableObject {
 
     // 내 주식 정보 (유저 = 기업)
     @Published var userStockPrice: Double = 1_000
+    private var lastClosingPrice: Double = 1_000 // 어제 종가 (오늘 변동폭 기준)
+
     let myTotalShares: Int = 100
     let myFounderShares: Int = 70
     let myFloatShares: Int = 30
@@ -115,10 +123,17 @@ class AppState: ObservableObject {
     // 내 투두 / 상장 기록
     @Published var myTodayRecord: DailyRecord? = nil
     @Published var myDailyRecords: [DailyRecord] = []
-    @Published var myPriceHistory: [PriceHistoryPoint] = Friend.generateSamplePriceHistory(basePrice: 1000)
-    @Published var userStockHistory: [Double] = [
-        700, 750, 800, 830, 870, 900, 920, 950, 980, 1000
+    
+    // 차트 데이터 (2026년 2월 2일부터 시작)
+    @Published var myPriceHistory: [PriceHistoryPoint] = [
+        PriceHistoryPoint(
+            date: Calendar.current.date(from: DateComponents(year: 2026, month: 2, day: 2))!,
+            price: 1000
+        )
     ]
+    
+    // 단순 Sparkline용 (호환성 유지)
+    @Published var userStockHistory: [Double] = [1000]
 
     // 보유 종목 & 친구
     @Published var holdings: [Holding] = []
@@ -141,8 +156,77 @@ class AppState: ObservableObject {
     @Published var activities: [Activity] = []
 
     // 스토어
+    // 스토어
     @Published var storeItems: [StoreItem] = StoreItem.sampleData
     @Published var mySkills: [String: Int] = ["시간 정지": 3, "도박 취소권": 1, "룰렛 추가 기회권": 2]
+
+    init() {
+        loadData()
+        checkNewDay()
+    }
+
+    // MARK: - Persistence Logic
+    private let defaults = UserDefaults.standard
+    private let recordsKey = "myDailyRecords"
+    private let priceHistoryKey = "myPriceHistory"
+    private let userStockPriceKey = "userStockPrice"
+    private let lastClosingPriceKey = "lastClosingPrice"
+    private let cashKey = "userCash"
+    private let todayRecordKey = "myTodayRecord"
+
+    private func saveData() {
+        if let encodedRecords = try? JSONEncoder().encode(myDailyRecords) {
+            defaults.set(encodedRecords, forKey: recordsKey)
+        }
+        if let encodedHistory = try? JSONEncoder().encode(myPriceHistory) {
+            defaults.set(encodedHistory, forKey: priceHistoryKey)
+        }
+        if let encodedToday = try? JSONEncoder().encode(myTodayRecord) {
+            defaults.set(encodedToday, forKey: todayRecordKey)
+        }
+        defaults.set(userStockPrice, forKey: userStockPriceKey)
+        defaults.set(lastClosingPrice, forKey: lastClosingPriceKey)
+        defaults.set(cash, forKey: cashKey)
+    }
+
+    private func loadData() {
+        if let data = defaults.data(forKey: recordsKey),
+           let decoded = try? JSONDecoder().decode([DailyRecord].self, from: data) {
+            myDailyRecords = decoded
+        }
+        if let data = defaults.data(forKey: priceHistoryKey),
+           let decoded = try? JSONDecoder().decode([PriceHistoryPoint].self, from: data) {
+            myPriceHistory = decoded
+        }
+        if let data = defaults.data(forKey: todayRecordKey),
+           let decoded = try? JSONDecoder().decode(DailyRecord.self, from: data) {
+            myTodayRecord = decoded
+        }
+        let savedPrice = defaults.double(forKey: userStockPriceKey)
+        if savedPrice > 0 { userStockPrice = savedPrice }
+        
+        let savedClosing = defaults.double(forKey: lastClosingPriceKey)
+        if savedClosing > 0 { lastClosingPrice = savedClosing }
+
+        let savedCash = defaults.integer(forKey: cashKey)
+        if savedCash > 0 { cash = savedCash }
+    }
+
+    private func checkNewDay() {
+        guard let record = myTodayRecord else { return }
+        
+        let calendar = Calendar.current
+        if !calendar.isDate(record.date, inSameDayAs: Date()) {
+            print("📅 날짜 변경 감지: \(record.date) -> \(Date())")
+            print("💾 어제 기록을 자동으로 정산하고 저장합니다.")
+            
+            // 어제 기록 정산 (저장소 이동)
+            settleDailyPrices()
+            
+            // 정산 후에는 myTodayRecord가 nil이 되므로, 화면이 비워짐
+            // 그리고 새로운 하루를 위해 lastClosingPrice가 확정됨.
+        }
+    }
 
     // MARK: - 시가총액 (내 가치)
     var myMarketCap: Double {
@@ -256,8 +340,52 @@ class AppState: ObservableObject {
             priceChangePercent: nil
         )
         myTodayRecord = record
+        
+        // 오늘 차트 포인트가 없으면 추가 (장 시작 가격 = 어제 종가)
+        let today = Calendar.current.startOfDay(for: Date())
+        if !myPriceHistory.contains(where: { Calendar.current.isDate($0.date, inSameDayAs: today) }) {
+            myPriceHistory.append(PriceHistoryPoint(date: Date(), price: lastClosingPrice))
+            userStockHistory.append(lastClosingPrice)
+        }
+        
         addActivity(type: .listing, description: "오늘의 투두 \(items.count)개 상장", amount: 0)
+        saveData()
         return true
+    }
+
+    // MARK: - 실시간 주가 업데이트 Logic
+    private func updateCurrentPrice() {
+        guard let record = myTodayRecord else { return }
+        
+        // 예상 변동폭 계산
+        let changePercent = record.projectedPriceChange
+        
+        // 현재가 = 어제종가 * (1 + 변동폭)
+        let newPrice = lastClosingPrice * (1.0 + changePercent)
+        userStockPrice = max(100, newPrice) // 최소 100원 방어
+        
+        // 일일 변동률 업데이트
+        dailyChange = changePercent * 100
+        
+        // 차트 마지막 포인트(오늘) 업데이트
+        if !myPriceHistory.isEmpty {
+            let lastIndex = myPriceHistory.count - 1
+            let lastPoint = myPriceHistory[lastIndex]
+            
+            // 만약 마지막 포인트가 '오늘' 것이라면 -> 값과 시간만 최신화
+            if Calendar.current.isDate(lastPoint.date, inSameDayAs: Date()) {
+                myPriceHistory[lastIndex].price = userStockPrice
+                myPriceHistory[lastIndex].date = Date()
+            } 
+            // 만약 마지막 포인트가 '과거' 것이라면 (아직 checkNewDay가 안 돌았거나 시점 차이)
+            // -> 건드리지 않음 (checkNewDay나 listTodayTodos에서 새 점을 찍을 것임)
+        }
+        
+        // Sparkline 마지막 포인트 업데이트
+        if !userStockHistory.isEmpty {
+            userStockHistory[userStockHistory.count - 1] = userStockPrice
+        }
+        saveData()
     }
 
     // MARK: - 투두 완성
@@ -267,6 +395,9 @@ class AppState: ObservableObject {
         record.todoItems[index].isCompleted = true
         record.todoItems[index].completedAt = Date()
         myTodayRecord = record
+        
+        // 실시간 주가 반영
+        updateCurrentPrice()
     }
 
     // MARK: - 투두 완성 취소
@@ -276,22 +407,30 @@ class AppState: ObservableObject {
         record.todoItems[index].isCompleted = false
         record.todoItems[index].completedAt = nil
         myTodayRecord = record
+        
+        // 실시간 주가 반영
+        updateCurrentPrice()
     }
 
-    // MARK: - 자정 정산 (주가 변동)
+    // MARK: - 자정 정산 (주가 확정)
     func settleDailyPrices() {
         guard var record = myTodayRecord else { return }
 
+        // 최종 변동폭으로 확정
         let changePercent = record.projectedPriceChange
-        userStockPrice *= (1.0 + changePercent)
-        userStockPrice = max(100, userStockPrice) // 최소 100원
-
+        // 이미 updateCurrentPrice()로 userStockPrice는 반영되어 있음
+        
+        // 기록 저장
         record.priceChangePercent = changePercent
         myDailyRecords.append(record)
         myTodayRecord = nil
-        userStockHistory.append(userStockPrice)
-        myPriceHistory.append(PriceHistoryPoint(date: Date(), price: userStockPrice))
-        dailyChange = changePercent * 100
+        
+        // 내일의 기준가가 될 종가 저장
+        lastClosingPrice = userStockPrice
+        
+        // 활동 내역 추가
+        addActivity(type: .listing, description: "장 마감 정산 완료 (변동: \(String(format: "%+.1f%%", dailyChange)))", amount: 0)
+        saveData()
     }
 
     // MARK: - 랭킹 (총 자산 기준)

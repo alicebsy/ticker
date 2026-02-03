@@ -10,7 +10,7 @@ import lombok.Data;
 public class LoginRequest {
 
     /** 로그인 ID */
-    @NotBlank(message = "아이디를 입력하세요")
+    @NotBlank(message = "이메일을 입력하세요")
     private String loginId;
 
     /** 비밀번호 */
