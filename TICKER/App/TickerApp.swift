@@ -211,13 +211,15 @@ class AppState: ObservableObject {
                 let cost = totalVal - profit
                 let avgPrice = dto.quantity > 0 ? cost / Double(dto.quantity) : 0
 
+                let changePct = cost > 0 ? (profit / cost) * 100 : 0.0
+
                 return Holding(
                     id: UUID(),
                     investmentId: dto.id, // Store backend investment ID
                     name: dto.ownerName,
                     ticker: String(dto.ownerName.prefix(2)),
                     currentPrice: Double(dto.currentPrice),
-                    change: 0.0,
+                    change: changePct,
                     quantity: dto.quantity,
                     avatarColor: .blue,
                     sparklineData: [],
