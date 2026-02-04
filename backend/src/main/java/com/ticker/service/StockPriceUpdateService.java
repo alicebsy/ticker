@@ -7,6 +7,7 @@ import com.ticker.model.User;
 import com.ticker.repository.StockPriceHistoryRepository;
 import com.ticker.repository.TodoRepository;
 import com.ticker.repository.UserRepository;
+import com.ticker.repository.InvestmentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -69,15 +70,16 @@ public class StockPriceUpdateService {
 
     private double computeChangePercent(List<Todo> todayTodos) {
         if (todayTodos == null || todayTodos.size() < MIN_TODOS_FOR_UPDATE) {
-            return 0.0;  // 4개 미만이면 변동 없음
+            return 0.0; // 4개 미만이면 변동 없음
         }
         long completed = todayTodos.stream()
-                .filter(t -> t.getStatus() == TodoStatus.COMPLETED || (t.getProgress() != null && t.getProgress() >= 100))
+                .filter(t -> t.getStatus() == TodoStatus.COMPLETED
+                        || (t.getProgress() != null && t.getProgress() >= 100))
                 .count();
         double ratio = (double) completed / todayTodos.size();
         double pct;
         if (ratio >= 1.0) {
-            pct = 10.0 + ThreadLocalRandom.current().nextDouble(0, 5.0);  // 10~15%
+            pct = 10.0 + ThreadLocalRandom.current().nextDouble(0, 5.0); // 10~15%
         } else if (ratio >= 0.75) {
             pct = 5.0;
         } else if (ratio >= 0.50) {
@@ -90,13 +92,26 @@ public class StockPriceUpdateService {
         return pct;
     }
 
+    private final InvestmentRepository investmentRepository;
+
     private void applyStockPriceChange(User user, double changePercent, LocalDate recordDate) {
         long oldPrice = user.getStockPrice();
         long newPrice = Math.max(1, (long) (oldPrice * (1 + changePercent / 100.0)));
         user.setStockPrice(newPrice);
+
+        // 시가총액 = 주가 * 100
         long marketCap = newPrice * TOTAL_SHARES;
         user.setMarketCap(marketCap);
-        user.setTotalAssets(user.getCashBalance() + marketCap);
+
+        // 총 자산 = 현금 + (주가 * 70) + 투자 평가액
+        List<com.ticker.model.Investment> investments = investmentRepository
+                .findByInvestorIdWithSubjectUser(user.getId());
+        long investingAmount = investments.stream()
+                .mapToLong(i -> (long) i.getQuantity() * i.getSubjectUser().getStockPrice())
+                .sum();
+
+        user.setTotalAssets(user.getCashBalance() + (newPrice * 70) + investingAmount);
+
         userRepository.save(user);
 
         StockPriceHistory history = StockPriceHistory.builder()

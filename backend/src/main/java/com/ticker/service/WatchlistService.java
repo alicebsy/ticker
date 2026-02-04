@@ -119,7 +119,8 @@ public class WatchlistService {
                             friend.getStockPrice(),
                             change,
                             chartData,
-                            remainingShares
+                            remainingShares,
+                            friend.getTotalAssets()
                     );
                 })
                 .collect(Collectors.toList());

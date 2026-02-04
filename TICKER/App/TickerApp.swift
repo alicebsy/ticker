@@ -176,6 +176,9 @@ class AppState: ObservableObject {
         if let index = self.friends.firstIndex(where: { $0.userId == userId }) {
             DispatchQueue.main.async {
                 self.friends[index].currentPrice = Double(newPrice)
+                if let totalAssets = notification.totalAssets {
+                    self.friends[index].backendTotalAssets = Double(totalAssets)
+                }
                 self.friends[index].sparklineData.append(Double(newPrice))
                 if self.friends[index].sparklineData.count > 20 { self.friends[index].sparklineData.removeFirst() }
             }
@@ -249,6 +252,7 @@ class AppState: ObservableObject {
                     isStarred: true,
                     sharesOutstanding: outstanding,
                     tradingVolume: 0,
+                    backendTotalAssets: dto.totalAssets.map { Double($0) },
                     todayRecord: nil,
                     dailyRecords: []
                 )
@@ -806,12 +810,13 @@ class AppState: ObservableObject {
             isMe: true
         ))
 
-        // 친구들 추가 (시가총액 기준 - 클라이언트에서는 정확한 총 자산을 알 수 없으므로)
+        // 친구들 추가 (백엔드에서 받은 실제 총 자산 사용)
         for friend in friends {
+            let friendTotal = friend.backendTotalAssets ?? (friend.marketCap + 100_000)
             entries.append(RankingEntry(
                 rank: 0,
                 name: friend.name,
-                totalAssets: friend.marketCap + 100_000, // 시가총액 + 초기 현금 추정
+                totalAssets: friendTotal,
                 change: friend.change,
                 isMe: false
             ))

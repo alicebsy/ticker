@@ -6,6 +6,7 @@ import com.ticker.model.*;
 import com.ticker.repository.StockPriceHistoryRepository;
 import com.ticker.repository.TodoRepository;
 import com.ticker.repository.UserRepository;
+import com.ticker.repository.InvestmentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -87,15 +88,13 @@ public class ListingService {
         if (!hasRegistrationDate) {
             chartData.add(new ListingResponse.ChartPointDto(
                     fromDate.toString(),
-                    1000L
-            ));
+                    1000L));
         }
 
         // 기존 이력 추가
         history.forEach(h -> chartData.add(new ListingResponse.ChartPointDto(
                 h.getRecordDate().toString(),
-                h.getPrice()
-        )));
+                h.getPrice())));
 
         // 오늘 포인트: 현재 주가 (완성률 반영된 예상 주가)
         // 오늘 가입한 유저의 경우 시작점(1000원)과 현재점을 모두 보여주기 위해
@@ -105,8 +104,7 @@ public class ListingService {
             if (user.getStockPrice() != 1000L) {
                 chartData.add(new ListingResponse.ChartPointDto(
                         today.toString(),
-                        user.getStockPrice()
-                ));
+                        user.getStockPrice()));
             }
         } else {
             // 이전에 가입한 유저: 오늘 포인트가 없으면 추가, 있으면 업데이트
@@ -115,8 +113,7 @@ public class ListingService {
             if (!hasTodayPoint) {
                 chartData.add(new ListingResponse.ChartPointDto(
                         today.toString(),
-                        user.getStockPrice()
-                ));
+                        user.getStockPrice()));
             } else {
                 chartData.stream()
                         .filter(p -> p.getDate().equals(today.toString()))
@@ -161,8 +158,7 @@ public class ListingService {
                 user.getStockPrice(),
                 changePercent,
                 status,
-                chartData
-        );
+                chartData);
 
         // 오늘의 투두 전체 (LISTED + COMPLETED 모두 포함) - 위에서 이미 조회한 todayTodos 재사용
         List<ListingResponse.ListedTodoDto> todoDtos = todayTodos.stream()
@@ -172,8 +168,7 @@ public class ListingService {
                         t.getDeadline().toString(),
                         t.getRewardPoints(),
                         t.getProgress(),
-                        t.getStatus() == TodoStatus.COMPLETED
-                ))
+                        t.getStatus() == TodoStatus.COMPLETED))
                 .collect(Collectors.toList());
 
         return ListingResponse.builder()
@@ -245,6 +240,8 @@ public class ListingService {
     /**
      * 오늘 완성률 기반 예상 주가를 계산하여 즉시 반영 (차트 실시간 업데이트용)
      */
+    private final InvestmentRepository investmentRepository;
+
     private void updateProjectedStockPrice(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다"));
@@ -253,7 +250,8 @@ public class ListingService {
         LocalDateTime endOfDay = LocalDate.now().plusDays(1).atStartOfDay();
         List<Todo> todayTodos = todoRepository.findByOwnerIdAndCreatedAtToday(userId, startOfDay, endOfDay);
 
-        if (todayTodos.isEmpty()) return;
+        if (todayTodos.isEmpty())
+            return;
 
         long completedCount = todayTodos.stream()
                 .filter(t -> t.getStatus() == TodoStatus.COMPLETED)
@@ -287,9 +285,19 @@ public class ListingService {
 
         long projectedPrice = Math.max(1, (long) (basePrice * (1 + changePct / 100.0)));
         user.setStockPrice(projectedPrice);
+
+        // 시가총액 = 주가 * 100 (발행 주식 수)
         long marketCap = projectedPrice * 100;
         user.setMarketCap(marketCap);
-        user.setTotalAssets(user.getCashBalance() + marketCap);
+
+        // 총 자산 = 현금 + (주가 * 70 (창업자 지분)) + 투자 평가액
+        List<Investment> investments = investmentRepository.findByInvestorIdWithSubjectUser(userId);
+        long investingAmount = investments.stream()
+                .mapToLong(i -> (long) i.getQuantity() * i.getSubjectUser().getStockPrice())
+                .sum();
+
+        user.setTotalAssets(user.getCashBalance() + (projectedPrice * 70) + investingAmount);
+
         userRepository.save(user);
 
         // 실시간 주가 변동 알림
@@ -301,7 +309,7 @@ public class ListingService {
         return switch (period != null ? period.toUpperCase() : "7D") {
             case "1D" -> now.minusDays(1);
             case "1M" -> now.minusMonths(1);
-            default -> now.minusDays(7);  // 7D
+            default -> now.minusDays(7); // 7D
         };
     }
 }

@@ -322,9 +322,10 @@ struct WatchlistItemDto: Codable, Identifiable {
     let changePercent: String
     let chartData: [Int]
     let remainingShares: Int?
+    let totalAssets: Int?
 
     enum CodingKeys: String, CodingKey {
-        case userId, name, imageUrl, currentPrice, changePercent, chartData, remainingShares
+        case userId, name, imageUrl, currentPrice, changePercent, chartData, remainingShares, totalAssets
     }
 }
 
@@ -520,6 +521,7 @@ struct Friend: Identifiable, Hashable {
     var availableShares: Int { floatShares - sharesOutstanding }
     var marketCap: Double { currentPrice * Double(totalShares) }  // 시가총액 = 내 가치
     var tradingVolume: Double      // 오늘 거래대금
+    var backendTotalAssets: Double? // 백엔드에서 받은 실제 총 자산 (랭킹용)
 
     // 투두 기록
     var todayRecord: DailyRecord?
