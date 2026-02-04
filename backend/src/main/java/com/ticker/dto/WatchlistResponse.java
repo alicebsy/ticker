@@ -46,5 +46,6 @@ public class WatchlistResponse {
         private Long currentPrice;
         private String changePercent;   // +3.50%, -1.20%, — 0.00%
         private List<Long> chartData;   // 미니 차트용 가격 배열
+        private int remainingShares;    // 매수 가능 잔여 주수 (30 - 이미 팔린 수)
     }
 }

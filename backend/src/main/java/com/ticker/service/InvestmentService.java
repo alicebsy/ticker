@@ -1,5 +1,6 @@
 package com.ticker.service;
 
+import com.ticker.dto.BuyResponse;
 import com.ticker.dto.HeldStocksResponse;
 import com.ticker.dto.InvestRequest;
 import com.ticker.model.Investment;
@@ -88,7 +89,7 @@ public class InvestmentService {
     }
 
     @Transactional
-    public Investment buy(Long userId, InvestRequest request) {
+    public BuyResponse buy(Long userId, InvestRequest request) {
         User investor = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
         User subjectUser = userRepository.findById(request.getSubjectUserId())
@@ -122,6 +123,7 @@ public class InvestmentService {
             long newCost = oldCost + cost;
             investment.setQuantity(newQty);
             investment.setPurchasePrice(newCost / newQty);
+            investment = investmentRepository.save(investment);
         } else {
             investment = Investment.builder()
                     .investor(investor)
@@ -139,7 +141,14 @@ public class InvestmentService {
         notificationService.sendInvestmentChange(subjectUser.getId(), "주식 매수가 체결되었습니다.", remainingShares);
         activityService.addActivity(userId, "BUY", subjectUser.getName() + " " + quantity + "주 매수", cost);
 
-        return investment;
+        return BuyResponse.builder()
+                .investmentId(investment.getId())
+                .subjectName(subjectUser.getName())
+                .quantity(quantity)
+                .purchasePrice(pricePerShare)
+                .totalCost(cost)
+                .message(subjectUser.getName() + " " + quantity + "주 매수 완료")
+                .build();
     }
 
     @Transactional

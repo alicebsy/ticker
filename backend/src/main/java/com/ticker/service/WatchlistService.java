@@ -8,6 +8,7 @@ import com.ticker.model.TodoStatus;
 import com.ticker.model.User;
 import com.ticker.model.Watchlist;
 import com.ticker.repository.FriendshipRepository;
+import com.ticker.repository.InvestmentRepository;
 import com.ticker.repository.TodoRepository;
 import com.ticker.repository.UserRepository;
 import com.ticker.repository.WatchlistRepository;
@@ -31,10 +32,13 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class WatchlistService {
 
+    private static final int SELLABLE_SHARES_PER_USER = 30;
+
     private final WatchlistRepository watchlistRepository;
     private final FriendshipRepository friendshipRepository;
     private final UserRepository userRepository;
     private final TodoRepository todoRepository;
+    private final InvestmentRepository investmentRepository;
     private final FriendCodeGenerator friendCodeGenerator;
     private final NotificationService notificationService;
 
@@ -104,13 +108,18 @@ public class WatchlistService {
                             friend.getStockPrice(),
                             friend.getStockPrice()
                     );
+                    // 매수 가능 잔여 주수 계산
+                    long alreadySold = investmentRepository.sumQuantityBySubjectUserId(friend.getId());
+                    int remainingShares = SELLABLE_SHARES_PER_USER - (int) alreadySold;
+
                     return new WatchlistResponse.WatchlistItemDto(
                             friend.getId(),
                             friend.getName(),
                             friend.getProfileImageUrl(),
                             friend.getStockPrice(),
                             change,
-                            chartData
+                            chartData,
+                            remainingShares
                     );
                 })
                 .collect(Collectors.toList());

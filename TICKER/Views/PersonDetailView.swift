@@ -460,35 +460,35 @@ struct PersonDetailView: View {
     private func executeOrder() {
         Task {
             if orderType == .buy {
-                let success = await appState.buyStock(
+                let result = await appState.buyStock(
                     friendName: liveFriend.name,
                     quantity: quantity,
                     pricePerShare: liveFriend.currentPrice
                 )
-                if success {
+                if result.success {
                     alertTitle = "매수 완료"
                     alertMessage = "\(liveFriend.name) \(quantity)주 매수 완료!"
                     showAlert = true
                     quantity = 1
                 } else {
                     alertTitle = "매수 실패"
-                    alertMessage = "잔고 부족 또는 매수 가능 수량 초과입니다."
+                    alertMessage = result.errorMessage ?? "잔고 부족 또는 매수 가능 수량 초과입니다."
                     showAlert = true
                 }
             } else {
-                let success = await appState.sellStock(
+                let result = await appState.sellStock(
                     friendName: liveFriend.name,
                     quantity: quantity,
                     pricePerShare: liveFriend.currentPrice
                 )
-                if success {
+                if result.success {
                     alertTitle = "매도 완료"
                     alertMessage = "\(liveFriend.name) \(quantity)주 매도 완료!"
                     showAlert = true
                     quantity = 1
                 } else {
                     alertTitle = "매도 실패"
-                    alertMessage = "보유 수량이 부족합니다."
+                    alertMessage = result.errorMessage ?? "보유 수량이 부족합니다."
                     showAlert = true
                 }
             }

@@ -252,12 +252,12 @@ struct InvestRequest: Codable {
 
 struct HeldStockDto: Codable, Identifiable {
     let id: Int // Investment ID
-    let name: String
-    let profileImageUrl: String?
+    let ownerName: String
+    let ownerImageUrl: String?
     let currentPrice: Int
-    let priceChangeText: String
+    let priceChangePercent: String
     let profitLoss: Int
-    let profitLossRate: String
+    let profitLossPercent: String
     let quantity: Int
     let holdingRatio: Int
 }
@@ -321,9 +321,10 @@ struct WatchlistItemDto: Codable, Identifiable {
     let currentPrice: Int
     let changePercent: String
     let chartData: [Int]
-    
+    let remainingShares: Int?
+
     enum CodingKeys: String, CodingKey {
-        case userId, name, imageUrl, currentPrice, changePercent, chartData
+        case userId, name, imageUrl, currentPrice, changePercent, chartData, remainingShares
     }
 }
 

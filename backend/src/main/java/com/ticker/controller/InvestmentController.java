@@ -1,8 +1,8 @@
 package com.ticker.controller;
 
+import com.ticker.dto.BuyResponse;
 import com.ticker.dto.HeldStocksResponse;
 import com.ticker.dto.InvestRequest;
-import com.ticker.model.Investment;
 import com.ticker.service.InvestmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -33,11 +33,11 @@ public class InvestmentController {
      * 매수
      */
     @PostMapping("/buy")
-    public ResponseEntity<Investment> buy(
+    public ResponseEntity<BuyResponse> buy(
             @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId,
             @Valid @RequestBody InvestRequest request) {
-        Investment inv = investmentService.buy(userId, request);
-        return ResponseEntity.ok(inv);
+        BuyResponse response = investmentService.buy(userId, request);
+        return ResponseEntity.ok(response);
     }
 
     /**

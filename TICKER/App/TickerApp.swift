@@ -207,12 +207,12 @@ class AppState: ObservableObject {
                 let profit = Double(dto.profitLoss)
                 let cost = totalVal - profit
                 let avgPrice = dto.quantity > 0 ? cost / Double(dto.quantity) : 0
-                
+
                 return Holding(
                     id: UUID(),
                     investmentId: dto.id, // Store backend investment ID
-                    name: dto.name,
-                    ticker: String(dto.name.prefix(2)),
+                    name: dto.ownerName,
+                    ticker: String(dto.ownerName.prefix(2)),
                     currentPrice: Double(dto.currentPrice),
                     change: 0.0,
                     quantity: dto.quantity,
@@ -231,22 +231,26 @@ class AppState: ObservableObject {
                 // Generate sparkline from dto.chartData
                 let sparkline = dto.chartData.map { Double($0) }
                 
+                // sharesOutstanding = 30 - remainingShares
+                let remaining = dto.remainingShares ?? 30
+                let outstanding = 30 - remaining
+
                 return Friend(
-                    id: UUID(), // We don't have UUID from backend, generate one.
+                    id: UUID(),
                     userId: dto.userId,
                     name: dto.name,
-                    ticker: dto.name.prefix(2).uppercased(), // Mock ticker
+                    ticker: dto.name.prefix(2).uppercased(),
                     currentPrice: Double(dto.currentPrice),
                     change: parseChangePercent(dto.changePercent),
-                    bio: "", // Backend doesn't send bio yet
-                    avatarColor: .gray, // Backend doesn't send color
+                    bio: "",
+                    avatarColor: .gray,
                     sparklineData: sparkline,
-                    priceHistory: [], // Would need detail fetch
-                    isStarred: true, // Only watchlist items for now
-                    sharesOutstanding: 0, // Mock
-                    tradingVolume: 0, // Mock
-                    todayRecord: nil, // Would need detail fetch
-                    dailyRecords: [] 
+                    priceHistory: [],
+                    isStarred: true,
+                    sharesOutstanding: outstanding,
+                    tradingVolume: 0,
+                    todayRecord: nil,
+                    dailyRecords: []
                 )
             }
             
@@ -494,37 +498,39 @@ class AppState: ObservableObject {
 
     // MARK: - 주식 매수 (사람 단위)
     @MainActor
-    func buyStock(friendName: String, quantity: Int, pricePerShare: Double) async -> Bool {
-        // Find subject User ID
-        guard let friend = friends.first(where: { $0.name == friendName }) else { return false }
+    func buyStock(friendName: String, quantity: Int, pricePerShare: Double) async -> (success: Bool, errorMessage: String?) {
+        guard let friend = friends.first(where: { $0.name == friendName }) else {
+            return (false, "친구를 찾을 수 없습니다.")
+        }
         let subjectUserId = friend.userId
-        
+
         let req = InvestRequest(subjectUserId: subjectUserId, quantity: quantity)
-        
+
         do {
-            let _: InvestmentSummaryDto? = try await NetworkManager.shared.request("/investments/buy", method: "POST", body: req)
-            // Refresh data to get updated holdings and cash
+            try await NetworkManager.shared.requestVoid("/investments/buy", method: "POST", body: req)
             await fetchMyData()
-            return true
+            return (true, nil)
         } catch {
-             print("Buy failed: \(error)")
-             return false
+            print("Buy failed: \(error)")
+            return (false, error.localizedDescription)
         }
     }
 
     // MARK: - 주식 매도 (사람 단위)
     @MainActor
-    func sellStock(friendName: String, quantity: Int, pricePerShare: Double) async -> Bool {
+    func sellStock(friendName: String, quantity: Int, pricePerShare: Double) async -> (success: Bool, errorMessage: String?) {
         guard let holding = holdings.first(where: { $0.name == friendName }),
-              let invId = holding.investmentId else { return false }
-        
+              let invId = holding.investmentId else {
+            return (false, "보유 종목을 찾을 수 없습니다.")
+        }
+
         do {
             try await NetworkManager.shared.requestVoid("/investments/\(invId)/sell?quantity=\(quantity)", method: "POST")
             await fetchMyData()
-            return true
+            return (true, nil)
         } catch {
             print("Sell failed: \(error)")
-            return false
+            return (false, error.localizedDescription)
         }
     }
 
