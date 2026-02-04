@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct ZoomableChartView: View {
     let data: [Double]
@@ -13,7 +14,7 @@ struct ZoomableChartView: View {
     }
     
     private var chartColor: Color {
-        isPositive ?  AppTheme.gain : AppTheme.loss
+        isPositive ? Color.green : Color.red
     }
     
     // Normalized data with simple moving average for smoothing if needed
@@ -25,8 +26,7 @@ struct ZoomableChartView: View {
             let height = geometry.size.height
             
             // Calculate visible range based on zoom and offset
-            let totalPoints = data.count
-            let visibleCount = max(minVisiblePoints, Int(CGFloat(totalPoints) / zoomLevel))
+            // (visibleCount could be used for slicing data when zoomed)
             
             // Clamp offset
             // When zoomed in, we can scroll. the offset is the starting index?
@@ -118,7 +118,7 @@ fileprivate struct ChartContent: View {
                      
                      Circle()
                          .stroke(color, lineWidth: 2)
-                         .background(Circle().fill(AppTheme.background)) // Match bg
+                         .background(Circle().fill(Color(nsColor: .windowBackgroundColor)))
                          .frame(width: 8, height: 8)
                          .position(x: x, y: y)
                  }

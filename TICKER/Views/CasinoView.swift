@@ -2,7 +2,6 @@ import SwiftUI
 
 struct CasinoView: View {
     @EnvironmentObject var appState: AppState
-    @State private var selectedGame: CasinoGame = .friendBet
     @State private var betAmount = ""
     @State private var selectedFriendId: Int?
     @State private var selectedBetType: BetType = .success
@@ -14,30 +13,14 @@ struct CasinoView: View {
         appState.casinoFriends.first(where: { $0.id == selectedFriendId })
     }
 
-    enum CasinoGame: String, CaseIterable {
-        case friendBet = "친구 베팅"
-        case prophecy = "예언"
-        case roulette = "룰렛"
-    }
-
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
                 // Header
                 headerSection
                 
-                // Game Selector
-                gameSelector
-                
-                // Game Content
-                switch selectedGame {
-                case .friendBet:
-                    friendBetSection
-                case .prophecy:
-                    prophecySection
-                case .roulette:
-                    rouletteSection
-                }
+                // 예언 배팅 (친구 성공/실패 예측)
+                prophecyBetSection
                 
                 // Recent Bets
                 recentBetsSection
@@ -74,7 +57,7 @@ struct CasinoView: View {
         }
 
         Task {
-            let success = await appState.placeBet(targetUserId: friendId, amount: amount, betType: selectedBetType == .success ? "SUCCESS" : "FAIL")
+            let success = await appState.placeBet(targetUserId: friendId, amount: amount, predictSuccess: selectedBetType == .success)
             if success {
                 alertMessage = "\(selectedFriend?.name ?? "친구")에게 '\(selectedBetType.rawValue)' \(formatCasinoPrice(amount))P 베팅 완료!"
                 showBetSuccessAlert = true
@@ -107,7 +90,7 @@ struct CasinoView: View {
                         .font(.largeTitle.weight(.bold))
                 }
                 
-                Text("친구의 성공/실패에 베팅하고 보상을 받으세요")
+                Text("친구의 할 일 성공/실패를 예언하고 베팅하세요")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -134,32 +117,38 @@ struct CasinoView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
     
-    // MARK: - Game Selector
-    private var gameSelector: some View {
-        Picker("게임", selection: $selectedGame) {
-            ForEach(CasinoGame.allCases, id: \.self) { game in
-                Text(game.rawValue).tag(game)
-            }
-        }
-        .pickerStyle(.segmented)
-    }
-    
-    // MARK: - Friend Bet Section
-    private var friendBetSection: some View {
+    // MARK: - 예언 배팅 Section (친구 성공/실패 예측)
+    private var prophecyBetSection: some View {
         VStack(spacing: 20) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("예언 배팅")
+                    .font(.headline)
+                Text("친구를 선택하고, 할 일 성공/실패를 예언한 뒤 베팅하세요.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
             // Friend Selection
             VStack(alignment: .leading, spacing: 12) {
                 Text("베팅 대상 선택")
-                    .font(.headline)
+                    .font(.subheadline.weight(.semibold))
                 
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(appState.casinoFriends) { friend in
-                            FriendBetCard(
-                                name: friend.name,
-                                isSelected: selectedFriendId == friend.id,
-                                action: { selectedFriendId = friend.id }
-                            )
+                if appState.casinoFriends.isEmpty {
+                    Text("친구가 없습니다. 워치리스트에 친구를 추가하면 베팅할 수 있습니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 8)
+                } else {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(appState.casinoFriends) { friend in
+                                FriendBetCard(
+                                    name: friend.name,
+                                    isSelected: selectedFriendId == friend.id,
+                                    action: { selectedFriendId = friend.id }
+                                )
+                            }
                         }
                     }
                 }
@@ -169,7 +158,7 @@ struct CasinoView: View {
             if selectedFriend != nil {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("베팅 유형")
-                        .font(.headline)
+                        .font(.subheadline.weight(.semibold))
                     
                     HStack(spacing: 16) {
                         BetTypeButton(
@@ -190,22 +179,22 @@ struct CasinoView: View {
             // Bet Amount
             if selectedFriend != nil {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("베팅 금액")
-                        .font(.headline)
+                    Text("베팅 금액 (P)")
+                        .font(.subheadline.weight(.semibold))
                     
                     HStack {
                         TextField("금액 입력", text: $betAmount)
                             .textFieldStyle(.roundedBorder)
                         
-                        Text("원")
+                        Text("P")
                             .foregroundStyle(.secondary)
                     }
                     
                     // Quick Amount Buttons
                     HStack(spacing: 8) {
-                        ForEach(["1,000", "5,000", "10,000", "50,000"], id: \.self) { amount in
+                        ForEach(["1000", "5000", "10000", "50000"], id: \.self) { amount in
                             Button(amount) {
-                                betAmount = amount.replacingOccurrences(of: ",", with: "")
+                                betAmount = amount
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
@@ -282,62 +271,6 @@ struct CasinoView: View {
         }
     }
     
-    // MARK: - Prophecy Section
-    private var prophecySection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("진행 중인 예언")
-                .font(.headline)
-            
-            VStack(spacing: 12) {
-                ProphecyCard(
-                    title: "김철수가 이번 달 안에 프로젝트를 완료할 것이다",
-                    yesOdds: 1.8,
-                    noOdds: 2.2,
-                    deadline: "3일 남음",
-                    totalPool: 125000
-                )
-                
-                ProphecyCard(
-                    title: "이영희의 주가가 다음 주에 10% 상승할 것이다",
-                    yesOdds: 2.5,
-                    noOdds: 1.5,
-                    deadline: "7일 남음",
-                    totalPool: 89000
-                )
-                
-                ProphecyCard(
-                    title: "박지민이 운동 30일 챌린지를 성공할 것이다",
-                    yesOdds: 1.4,
-                    noOdds: 3.0,
-                    deadline: "15일 남음",
-                    totalPool: 234000
-                )
-            }
-        }
-        .padding()
-        .cardStyle()
-    }
-    
-    // MARK: - Roulette Section
-    private var rouletteSection: some View {
-        VStack(spacing: 24) {
-            Text("준비 중")
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(.secondary)
-            
-            Image(systemName: "hourglass")
-                .font(.system(size: 60))
-                .foregroundStyle(.secondary)
-            
-            Text("룰렛 게임은 곧 출시됩니다")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(60)
-        .cardStyle()
-    }
-    
     // MARK: - Recent Bets Section
     private var recentBetsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -358,7 +291,8 @@ struct CasinoView: View {
                             type: bet.betType == "SUCCESS" ? .success : .failure,
                             amount: bet.betAmount,
                             result: parseBetResult(bet.result),
-                            profit: bet.profitLoss ?? 0
+                            profit: bet.profitLoss ?? 0,
+                            unit: "P"
                         )
                     }
                 }
@@ -367,10 +301,10 @@ struct CasinoView: View {
     }
     
     private func parseBetResult(_ result: String?) -> RecentBetRow.BetResult {
-        guard let result = result else { return .pending }
+        guard let result = result?.lowercased() else { return .pending }
         switch result {
-        case "WIN": return .win
-        case "LOSE": return .lose
+        case "win": return .win
+        case "lose": return .lose
         default: return .pending
         }
     }
@@ -504,6 +438,7 @@ struct RecentBetRow: View {
     let amount: Int
     let result: BetResult
     let profit: Int
+    var unit: String = "P"
     
     enum BetResult {
         case win, lose, pending
@@ -524,16 +459,16 @@ struct RecentBetRow: View {
             
             Spacer()
             
-            Text("₩\(amount)")
+            Text("\(amount)\(unit)")
                 .font(.subheadline)
             
             switch result {
             case .win:
-                Text("+₩\(profit)")
+                Text("+\(profit)\(unit)")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(AppTheme.gain)
             case .lose:
-                Text("₩\(profit)")
+                Text("\(profit)\(unit)")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(AppTheme.loss)
             case .pending:

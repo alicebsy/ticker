@@ -123,13 +123,98 @@ class NetworkManager: ObservableObject {
         return try await request("/listing/user/\(userId)?period=\(period)")
     }
 
-    func getCasino() async throws -> CasinoGameResponse {
+    // MARK: - News
+    func fetchNews(category: String?) async throws -> [NewsPostDto] {
+        var path = "/news"
+        if let cat = category, cat != "ALL", !cat.isEmpty {
+            path += "?category=\(cat)"
+        }
+        return try await request(path)
+    }
+
+    func fetchNewsDetail(postId: Int) async throws -> NewsPostDto {
+        return try await request("/news/\(postId)")
+    }
+
+    struct CreateNewsPostBody: Codable {
+        let title: String
+        let content: String
+        let category: String
+        let anonymous: Bool
+    }
+    func createNewsPost(title: String, content: String, category: String, anonymous: Bool) async throws -> NewsPostDto {
+        let body = CreateNewsPostBody(title: title, content: content, category: category, anonymous: anonymous)
+        return try await request("/news", method: "POST", body: body)
+    }
+
+    struct UpdateNewsPostBody: Codable {
+        let title: String
+        let content: String
+        let category: String
+        let anonymous: Bool
+    }
+    func updateNewsPost(postId: Int, title: String, content: String, category: String, anonymous: Bool) async throws -> NewsPostDto {
+        let body = UpdateNewsPostBody(title: title, content: content, category: category, anonymous: anonymous)
+        return try await request("/news/\(postId)", method: "PUT", body: body)
+    }
+
+    func deleteNewsPost(postId: Int) async throws {
+        let _: EmptyJson = try await request("/news/\(postId)", method: "DELETE")
+    }
+    private struct EmptyJson: Codable {}
+
+    struct CreateNewsCommentBody: Codable {
+        let content: String
+    }
+    func addNewsComment(postId: Int, content: String) async throws -> NewsCommentDto {
+        return try await request("/news/\(postId)/comments", method: "POST", body: CreateNewsCommentBody(content: content))
+    }
+
+    func likeNewsPost(postId: Int) async throws {
+        try await requestVoid("/news/\(postId)/like", method: "POST")
+    }
+
+    // MARK: - Casino (백엔드: bettingBalance, betHistory / 친구 목록은 watchlist/friends)
+    struct CasinoResponse: Codable {
+        let bettingBalance: Int
+        let betHistory: [CasinoBetHistoryItem]
+    }
+    struct CasinoBetHistoryItem: Codable {
+        let id: Int
+        let target: String?
+        let type: String?
+        let amount: Int
+        let result: String?
+        let profit: Int?
+    }
+    func getCasino() async throws -> CasinoResponse {
         return try await request("/casino")
     }
-    
-    func placeBet(targetUserId: Int, amount: Int, betType: String) async throws {
-        let req = PlaceBetData(targetUserId: targetUserId, betAmount: amount, betType: betType)
-        try await requestVoid("/casino/bet", method: "POST", body: req)
+
+    struct PlaceBetBody: Codable {
+        let friendUserId: Int?
+        let todoId: Int?
+        let amount: Int
+        let predictSuccess: Bool
+    }
+    func placeBet(friendUserId: Int, amount: Int, predictSuccess: Bool) async throws {
+        let body = PlaceBetBody(friendUserId: friendUserId, todoId: nil, amount: amount, predictSuccess: predictSuccess)
+        try await requestVoid("/casino/bets", method: "POST", body: body)
+    }
+
+    /// GET /api/watchlist/friends → 친구 목록 (예언 배팅 대상)
+    func getWatchlistFriends() async throws -> [WatchlistFriend] {
+        return try await request("/watchlist/friends")
+    }
+    struct WatchlistFriend: Codable, Identifiable {
+        let id: Int
+        let name: String
+        let loginId: String?
+        let profileImageUrl: String?
+        let cashBalance: Int?
+        let marketCap: Int?
+        let totalAssets: Int?
+        let stockPrice: Int?
     }
     
     // MARK: - Dark Market

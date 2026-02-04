@@ -293,7 +293,9 @@ class AppState: ObservableObject {
             }
             
             self.friendRequests = combinedRequests
-            // 4. Listing (My Stock & Todos)
+            // 4. News
+            await fetchNews(category: nil)
+            // 5. Listing (My Stock & Todos)
             let listingResponse: ListingResponse = try await NetworkManager.shared.request("/listing")
             
             // Map listedTodos to DailyRecord (LISTED + COMPLETED 모두 포함)
@@ -394,8 +396,8 @@ class AppState: ObservableObject {
         return "코드 없음"
     }
 
-    // 뉴스 / 커뮤니티
-    @Published var newsPosts: [NewsPost] = NewsPost.sampleData
+    // 뉴스 / 커뮤니티 (서버에서 로드)
+    @Published var newsPosts: [NewsPost] = []
 
     // 활동 내역
     @Published var activities: [TickerActivity] = []
@@ -705,9 +707,14 @@ class AppState: ObservableObject {
     @MainActor
     func fetchCasinoData() async {
         do {
-            let response = try await NetworkManager.shared.getCasino()
-            self.casinoFriends = response.availableFriends
-            self.bettingHistory = response.myBettingHistory
+            let (casinoRes, friendsRes) = try await (NetworkManager.shared.getCasino(), NetworkManager.shared.getWatchlistFriends())
+            self.cash = casinoRes.bettingBalance
+            self.casinoFriends = friendsRes.map { f in
+                CasinoFriend(id: f.id, name: f.name, imageUrl: f.profileImageUrl, currentPrice: f.stockPrice ?? 1000)
+            }
+            self.bettingHistory = casinoRes.betHistory.map { b in
+                BettingHistory(id: b.id, targetName: b.target ?? "", betAmount: b.amount, betType: b.type ?? "", result: b.result, profitLoss: b.profit)
+            }
         } catch {
             print("Failed to fetch casino data: \(error)")
         }
@@ -764,12 +771,102 @@ class AppState: ObservableObject {
         }
     }
     
+    // MARK: - News
     @MainActor
-    func placeBet(targetUserId: Int, amount: Int, betType: String) async -> Bool {
+    func fetchNews(category: NewsCategory?) async {
         do {
-            try await NetworkManager.shared.placeBet(targetUserId: targetUserId, amount: amount, betType: betType)
+            let cat: String? = category == nil || category == .all ? nil : category!.backendValue
+            let list: [NewsPostDto] = try await NetworkManager.shared.fetchNews(category: cat)
+            self.newsPosts = list.map { $0.toNewsPost() }
+        } catch {
+            print("Failed to fetch news: \(error)")
+        }
+    }
+
+    @MainActor
+    func fetchNewsDetail(postId: Int) async -> NewsPost? {
+        do {
+            let dto = try await NetworkManager.shared.fetchNewsDetail(postId: postId)
+            return dto.toNewsPost()
+        } catch {
+            print("Failed to fetch news detail: \(error)")
+            return nil
+        }
+    }
+
+    @MainActor
+    func createNewsPost(title: String, content: String, category: NewsCategory, anonymous: Bool) async -> NewsPost? {
+        do {
+            let dto = try await NetworkManager.shared.createNewsPost(title: title, content: content, category: category.backendValue, anonymous: anonymous)
+            let post = dto.toNewsPost()
+            self.newsPosts.insert(post, at: 0)
+            return post
+        } catch {
+            print("Failed to create news post: \(error)")
+            return nil
+        }
+    }
+
+    @MainActor
+    func updateNewsPost(postId: Int, title: String, content: String, category: NewsCategory, anonymous: Bool) async -> NewsPost? {
+        do {
+            let dto = try await NetworkManager.shared.updateNewsPost(postId: postId, title: title, content: content, category: category.backendValue, anonymous: anonymous)
+            let post = dto.toNewsPost()
+            if let idx = self.newsPosts.firstIndex(where: { $0.id == postId }) {
+                self.newsPosts[idx] = post
+            }
+            return post
+        } catch {
+            print("Failed to update news post: \(error)")
+            return nil
+        }
+    }
+
+    @MainActor
+    func deleteNewsPost(postId: Int) async -> Bool {
+        do {
+            try await NetworkManager.shared.deleteNewsPost(postId: postId)
+            self.newsPosts.removeAll { $0.id == postId }
+            return true
+        } catch {
+            print("Failed to delete news post: \(error)")
+            return false
+        }
+    }
+
+    @MainActor
+    func addNewsComment(postId: Int, content: String) async -> NewsComment? {
+        do {
+            let dto = try await NetworkManager.shared.addNewsComment(postId: postId, content: content)
+            let comment = dto.toNewsComment()
+            if let idx = self.newsPosts.firstIndex(where: { $0.id == postId }) {
+                self.newsPosts[idx].comments.append(comment)
+            }
+            return comment
+        } catch {
+            print("Failed to add comment: \(error)")
+            return nil
+        }
+    }
+
+    @MainActor
+    func likeNewsPost(postId: Int) async {
+        do {
+            try await NetworkManager.shared.likeNewsPost(postId: postId)
+            if let idx = self.newsPosts.firstIndex(where: { $0.id == postId }) {
+                self.newsPosts[idx].likes += 1
+            }
+        } catch {
+            print("Failed to like post: \(error)")
+        }
+    }
+
+    @MainActor
+    func placeBet(targetUserId: Int, amount: Int, predictSuccess: Bool) async -> Bool {
+        do {
+            try await NetworkManager.shared.placeBet(friendUserId: targetUserId, amount: amount, predictSuccess: predictSuccess)
             await fetchCasinoData()
-            await fetchMyData() // Refresh cash balance
+            await fetchMyData()
             return true
         } catch {
             print("Failed to place bet: \(error)")

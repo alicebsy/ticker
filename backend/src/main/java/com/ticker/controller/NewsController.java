@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 뉴스(게시판) API
@@ -68,5 +69,27 @@ public class NewsController {
     public ResponseEntity<Void> likePost(@PathVariable Long postId) {
         newsService.likePost(postId);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * 글 수정 (본인만)
+     */
+    @PutMapping("/{postId}")
+    public ResponseEntity<NewsPostDto> updatePost(
+            @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId,
+            @PathVariable Long postId,
+            @Valid @RequestBody UpdateNewsPostRequest request) {
+        return ResponseEntity.ok(newsService.updatePost(userId, postId, request));
+    }
+
+    /**
+     * 글 삭제 (본인만)
+     */
+    @DeleteMapping("/{postId}")
+    public ResponseEntity<Map<String, String>> deletePost(
+            @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId,
+            @PathVariable Long postId) {
+        newsService.deletePost(userId, postId);
+        return ResponseEntity.ok(Map.of("message", "삭제되었습니다"));
     }
 }

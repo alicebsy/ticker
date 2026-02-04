@@ -1,5 +1,6 @@
 package com.ticker.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.ticker.model.NewsCategory;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -27,6 +28,7 @@ public class NewsPostDto {
     private String content;
     private NewsCategory category;
     private int likes;
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime timestamp;
     private boolean anonymous;
 

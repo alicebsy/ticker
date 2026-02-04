@@ -100,6 +100,38 @@ public class NewsService {
         newsPostRepository.save(post);
     }
 
+    /**
+     * 글 수정 (작성자만)
+     */
+    @Transactional
+    public NewsPostDto updatePost(Long userId, Long postId, UpdateNewsPostRequest request) {
+        NewsPost post = newsPostRepository.findById(postId)
+                .orElseThrow(() -> new IllegalArgumentException("글을 찾을 수 없습니다"));
+        if (!post.getAuthor().getId().equals(userId)) {
+            throw new IllegalArgumentException("본인의 글만 수정할 수 있습니다");
+        }
+        post.setTitle(request.getTitle());
+        post.setContent(request.getContent());
+        post.setCategory(request.getCategory());
+        post.setAnonymous(request.isAnonymous());
+        post = newsPostRepository.save(post);
+        var comments = newsCommentRepository.findByPostIdWithAuthorOrderByCreatedAtAsc(postId);
+        return toDetailDto(post, comments);
+    }
+
+    /**
+     * 글 삭제 (작성자만)
+     */
+    @Transactional
+    public void deletePost(Long userId, Long postId) {
+        NewsPost post = newsPostRepository.findById(postId)
+                .orElseThrow(() -> new IllegalArgumentException("글을 찾을 수 없습니다"));
+        if (!post.getAuthor().getId().equals(userId)) {
+            throw new IllegalArgumentException("본인의 글만 삭제할 수 있습니다");
+        }
+        newsPostRepository.delete(post);
+    }
+
     private NewsPostDto toListDto(NewsPost p) {
         int commentCount = (int) newsCommentRepository.countByPostId(p.getId());
         return NewsPostDto.builder()

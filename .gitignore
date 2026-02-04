@@ -33,3 +33,6 @@ logs/
 .env
 .env.local
 *.local
+
+# DB (로컬 H2/데이터)
+backend/data/

@@ -382,34 +382,21 @@ struct LoginResponse: Codable {
     let message: String
 }
 
-// MARK: - Casino
-struct CasinoGameResponse: Codable {
-    let availableFriends: [CasinoFriend]
-    let myBettingHistory: [BettingHistory]
-}
-
-struct CasinoFriend: Codable, Identifiable {
+// MARK: - Casino (UI용 - API 응답에서 매핑)
+struct CasinoFriend: Identifiable {
     let id: Int
     let name: String
     let imageUrl: String?
     let currentPrice: Int
-    let todayTodoCount: Int
-    let todayCompletedCount: Int
 }
 
-struct BettingHistory: Codable, Identifiable {
+struct BettingHistory: Identifiable {
     let id: Int
     let targetName: String
     let betAmount: Int
     let betType: String
     let result: String?
     let profitLoss: Int?
-}
-
-struct PlaceBetData: Codable {
-    let targetUserId: Int
-    let betAmount: Int
-    let betType: String // "SUCCESS" or "FAIL"
 }
 
 // MARK: - Dark Market
@@ -831,9 +818,77 @@ enum TickerActivityType: String, Codable {
     }
 }
 
+// MARK: - News (API DTOs from backend)
+struct NewsPostDto: Codable {
+    let id: Int
+    let authorId: Int
+    let authorName: String
+    let authorTicker: String?
+    let title: String
+    let content: String
+    let category: String
+    let likes: Int
+    let timestamp: String
+    let anonymous: Bool
+    let commentCount: Int?
+    let comments: [NewsCommentDto]?
+}
+
+struct NewsCommentDto: Codable {
+    let id: Int
+    let authorId: Int
+    let authorName: String
+    let content: String
+    let timestamp: String
+}
+
+private func parseNewsDate(_ s: String) -> Date {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    if let d = formatter.date(from: s) { return d }
+    formatter.formatOptions = [.withInternetDateTime]
+    return formatter.date(from: s) ?? Date()
+}
+
+private func avatarColorFor(authorId: Int) -> Color {
+    let colors: [Color] = [.blue, .green, .orange, .pink, .purple, .cyan, .mint]
+    return colors[abs(authorId) % colors.count]
+}
+
+extension NewsPostDto {
+    func toNewsPost() -> NewsPost {
+        NewsPost(
+            id: id,
+            authorId: authorId,
+            author: anonymous ? "익명" : authorName,
+            authorTicker: authorTicker ?? "",
+            avatarColor: avatarColorFor(authorId: authorId),
+            title: title,
+            content: content,
+            category: NewsCategory.fromBackend(category),
+            likes: likes,
+            comments: (comments ?? []).map { $0.toNewsComment() },
+            timestamp: parseNewsDate(timestamp),
+            isAnonymous: anonymous
+        )
+    }
+}
+
+extension NewsCommentDto {
+    func toNewsComment() -> NewsComment {
+        NewsComment(
+            id: id,
+            author: authorName,
+            content: content,
+            timestamp: parseNewsDate(timestamp)
+        )
+    }
+}
+
 // MARK: - NewsPost
 struct NewsPost: Identifiable, Hashable {
-    let id: UUID
+    let id: Int
+    var authorId: Int
     var author: String
     var authorTicker: String
     var avatarColor: Color
@@ -867,7 +922,8 @@ struct NewsPost: Identifiable, Hashable {
 
     static let sampleData: [NewsPost] = [
         NewsPost(
-            id: UUID(),
+            id: 1,
+            authorId: 1,
             author: "박지민",
             authorTicker: "JIMIN",
             avatarColor: .orange,
@@ -876,14 +932,15 @@ struct NewsPost: Identifiable, Hashable {
             category: .discussion,
             likes: 12,
             comments: [
-                NewsComment(id: UUID(), author: "김철수", content: "저도 AI 쪽 투두 위주로 해요!", timestamp: Date().addingTimeInterval(-1800)),
-                NewsComment(id: UUID(), author: "최수진", content: "꾸준히 하면 주가 잘 오르더라구요", timestamp: Date().addingTimeInterval(-900)),
+                NewsComment(id: 1, author: "김철수", content: "저도 AI 쪽 투두 위주로 해요!", timestamp: Date().addingTimeInterval(-1800)),
+                NewsComment(id: 2, author: "최수진", content: "꾸준히 하면 주가 잘 오르더라구요", timestamp: Date().addingTimeInterval(-900)),
             ],
             timestamp: Date().addingTimeInterval(-600),
             isAnonymous: false
         ),
         NewsPost(
-            id: UUID(),
+            id: 2,
+            authorId: 2,
             author: "김철수",
             authorTicker: "CHUL",
             avatarColor: .blue,
@@ -892,13 +949,14 @@ struct NewsPost: Identifiable, Hashable {
             category: .analysis,
             likes: 8,
             comments: [
-                NewsComment(id: UUID(), author: "익명", content: "투두 완성률 25% 미만이래요", timestamp: Date().addingTimeInterval(-3000)),
+                NewsComment(id: 3, author: "익명", content: "투두 완성률 25% 미만이래요", timestamp: Date().addingTimeInterval(-3000)),
             ],
             timestamp: Date().addingTimeInterval(-3600),
             isAnonymous: false
         ),
         NewsPost(
-            id: UUID(),
+            id: 3,
+            authorId: 3,
             author: "최수진",
             authorTicker: "SUJIN",
             avatarColor: .green,
@@ -907,14 +965,15 @@ struct NewsPost: Identifiable, Hashable {
             category: .tip,
             likes: 15,
             comments: [
-                NewsComment(id: UUID(), author: "박지민", content: "좋은 팁이네요!", timestamp: Date().addingTimeInterval(-5400)),
-                NewsComment(id: UUID(), author: "정민호", content: "저도 따라해볼게요", timestamp: Date().addingTimeInterval(-4800)),
+                NewsComment(id: 4, author: "박지민", content: "좋은 팁이네요!", timestamp: Date().addingTimeInterval(-5400)),
+                NewsComment(id: 5, author: "정민호", content: "저도 따라해볼게요", timestamp: Date().addingTimeInterval(-4800)),
             ],
             timestamp: Date().addingTimeInterval(-7200),
             isAnonymous: false
         ),
         NewsPost(
-            id: UUID(),
+            id: 4,
+            authorId: 4,
             author: "이영희",
             authorTicker: "YOUNG",
             avatarColor: .pink,
@@ -923,13 +982,14 @@ struct NewsPost: Identifiable, Hashable {
             category: .free,
             likes: 23,
             comments: [
-                NewsComment(id: UUID(), author: "김철수", content: "ㅋㅋㅋㅋ 저도요...", timestamp: Date().addingTimeInterval(-10800)),
+                NewsComment(id: 6, author: "김철수", content: "ㅋㅋㅋㅋ 저도요...", timestamp: Date().addingTimeInterval(-10800)),
             ],
             timestamp: Date().addingTimeInterval(-14400),
             isAnonymous: false
         ),
         NewsPost(
-            id: UUID(),
+            id: 5,
+            authorId: 5,
             author: "정민호",
             authorTicker: "MINHO",
             avatarColor: .purple,
@@ -946,7 +1006,7 @@ struct NewsPost: Identifiable, Hashable {
 
 // MARK: - NewsComment
 struct NewsComment: Identifiable, Hashable {
-    let id: UUID
+    let id: Int
     var author: String
     var content: String
     var timestamp: Date
@@ -985,6 +1045,28 @@ enum NewsCategory: String, CaseIterable, Codable {
         case .analysis: return .blue
         case .tip: return .yellow
         case .discussion: return .green
+        }
+    }
+
+    /// 백엔드 API 문자열 (FREE, ANALYSIS 등) → NewsCategory
+    static func fromBackend(_ s: String) -> NewsCategory {
+        switch s.uppercased() {
+        case "FREE": return .free
+        case "ANALYSIS": return .analysis
+        case "TIP": return .tip
+        case "DISCUSSION": return .discussion
+        default: return .free
+        }
+    }
+
+    /// 백엔드로 보낼 때 사용
+    var backendValue: String {
+        switch self {
+        case .all: return "FREE"
+        case .free: return "FREE"
+        case .analysis: return "ANALYSIS"
+        case .tip: return "TIP"
+        case .discussion: return "DISCUSSION"
         }
     }
 }
