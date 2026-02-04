@@ -13,8 +13,13 @@ struct SignupView: View {
     @State private var errorMessage = ""
     @State private var showError = false
     
+    private var isValidEmail: Bool {
+        let pattern = #"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"#
+        return loginId.range(of: pattern, options: .regularExpression) != nil
+    }
+
     var isFormValid: Bool {
-        !loginId.isEmpty && !password.isEmpty && !name.isEmpty && password == passwordConfirm
+        isValidEmail && !password.isEmpty && !name.isEmpty && password == passwordConfirm
     }
     
     var body: some View {
@@ -53,7 +58,15 @@ struct SignupView: View {
                         // 입력 폼
                         VStack(spacing: 20) {
                             inputGroup(title: "이메일", placeholder: "사용할 이메일을 입력하세요", text: $loginId)
-                            
+
+                            if !loginId.isEmpty && !isValidEmail {
+                                Text("올바른 이메일 형식이 아닙니다 (예: user@example.com)")
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.top, -12)
+                            }
+
                             inputGroup(title: "비밀번호", placeholder: "비밀번호를 입력하세요", text: $password, isSecure: true)
                             
                             inputGroup(title: "비밀번호 확인", placeholder: "비밀번호를 다시 입력하세요", text: $passwordConfirm, isSecure: true)
