@@ -358,6 +358,7 @@ struct ListedTodoDto: Codable, Identifiable {
     let deadline: String
     let reward: Int
     let progress: Int
+    let completed: Bool?
 }
 
 struct WatchlistResponse: Codable {

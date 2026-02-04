@@ -3,15 +3,21 @@ package com.ticker.service;
 import com.ticker.dto.FriendRequest;
 import com.ticker.dto.WatchlistResponse;
 import com.ticker.model.Friendship;
+import com.ticker.model.Todo;
+import com.ticker.model.TodoStatus;
 import com.ticker.model.User;
 import com.ticker.model.Watchlist;
 import com.ticker.repository.FriendshipRepository;
+import com.ticker.repository.TodoRepository;
 import com.ticker.repository.UserRepository;
 import com.ticker.repository.WatchlistRepository;
 import com.ticker.util.FriendCodeGenerator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +34,7 @@ public class WatchlistService {
     private final WatchlistRepository watchlistRepository;
     private final FriendshipRepository friendshipRepository;
     private final UserRepository userRepository;
+    private final TodoRepository todoRepository;
     private final FriendCodeGenerator friendCodeGenerator;
     private final NotificationService notificationService;
 
@@ -57,17 +64,51 @@ public class WatchlistService {
                 ))
                 .collect(Collectors.toList());
 
-        List<Watchlist> watchlists = watchlistRepository.findByUserIdWithWatchedUser(userId);
-        List<WatchlistResponse.WatchlistItemDto> items = watchlists.stream()
-                .map(w -> {
-                    User watched = w.getWatchedUser();
-                    String change = String.format("%+.2f%%", 3.5);  // 샘플, 실제로는 전일 대비
-                    List<Long> chartData = List.of(9500L, 9600L, 9700L, 9800L, 9800L);  // 샘플
+        // ACCEPTED된 친구를 watchlistItems로 표시
+        List<Friendship> acceptedFriends = friendshipRepository.findAcceptedFriendsByUserId(userId);
+        List<WatchlistResponse.WatchlistItemDto> items = acceptedFriends.stream()
+                .map(f -> {
+                    // 친구 = 내가 requester면 addressee, 내가 addressee면 requester
+                    User friend = f.getRequester().getId().equals(userId)
+                            ? f.getAddressee() : f.getRequester();
+
+                    // 오늘 투두 완성률 기반 실제 주가 변동폭 계산
+                    LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
+                    LocalDateTime endOfDay = LocalDate.now().plusDays(1).atStartOfDay();
+                    List<Todo> friendTodos = todoRepository.findByOwnerIdAndCreatedAtToday(friend.getId(), startOfDay, endOfDay);
+
+                    String change;
+                    if (!friendTodos.isEmpty()) {
+                        long completedCount = friendTodos.stream()
+                                .filter(t -> t.getStatus() == TodoStatus.COMPLETED)
+                                .count();
+                        double ratio = (double) completedCount / friendTodos.size();
+                        double changePct;
+                        if (ratio >= 1.0) {
+                            changePct = 12.5;
+                        } else if (ratio >= 0.75) {
+                            changePct = 5.0;
+                        } else if (ratio >= 0.50) {
+                            changePct = 0.0;
+                        } else if (ratio >= 0.25) {
+                            changePct = -10.0;
+                        } else {
+                            changePct = -20.0;
+                        }
+                        change = String.format("%+.2f%%", changePct);
+                    } else {
+                        change = "— 0.00%";
+                    }
+
+                    List<Long> chartData = List.of(
+                            friend.getStockPrice(),
+                            friend.getStockPrice()
+                    );
                     return new WatchlistResponse.WatchlistItemDto(
-                            watched.getId(),
-                            watched.getName(),
-                            watched.getProfileImageUrl(),
-                            watched.getStockPrice(),
+                            friend.getId(),
+                            friend.getName(),
+                            friend.getProfileImageUrl(),
+                            friend.getStockPrice(),
                             change,
                             chartData
                     );

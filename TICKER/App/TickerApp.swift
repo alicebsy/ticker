@@ -286,18 +286,19 @@ class AppState: ObservableObject {
             // 4. Listing (My Stock & Todos)
             let listingResponse: ListingResponse = try await NetworkManager.shared.request("/listing")
             
-            // Map listedTodos to DailyRecord
+            // Map listedTodos to DailyRecord (LISTED + COMPLETED 모두 포함)
             if !listingResponse.listedTodos.isEmpty {
                 let items = listingResponse.listedTodos.map { dto in
-                    TodoItem(
+                    let isCompleted = dto.completed ?? (dto.progress >= 100)
+                    return TodoItem(
                         id: UUID(), // Local UI ID
                         backendId: dto.id,
                         title: dto.name,
-                        isCompleted: dto.progress >= 100, // Assuming 100 is completed
-                        completedAt: dto.progress >= 100 ? Date() : nil
+                        isCompleted: isCompleted,
+                        completedAt: isCompleted ? Date() : nil
                     )
                 }
-                
+
                 self.myTodayRecord = DailyRecord(
                     date: Date(),
                     todoItems: items,
@@ -527,7 +528,55 @@ class AppState: ObservableObject {
         }
     }
 
-    // MARK: - 투두 상장
+    // MARK: - 친구 상장 데이터 조회
+    @MainActor
+    func fetchFriendListing(friendUserId: Int) async {
+        guard let index = friends.firstIndex(where: { $0.userId == friendUserId }) else { return }
+
+        do {
+            let listingResponse: ListingResponse = try await NetworkManager.shared.fetchFriendListing(userId: friendUserId)
+
+            // 투두 데이터 매핑
+            if !listingResponse.listedTodos.isEmpty {
+                let items = listingResponse.listedTodos.map { dto in
+                    let isCompleted = dto.completed ?? (dto.progress >= 100)
+                    return TodoItem(
+                        id: UUID(),
+                        backendId: dto.id,
+                        title: dto.name,
+                        isCompleted: isCompleted,
+                        completedAt: isCompleted ? Date() : nil
+                    )
+                }
+
+                friends[index].todayRecord = DailyRecord(
+                    date: Date(),
+                    todoItems: items,
+                    isListed: true,
+                    priceChangePercent: nil
+                )
+            } else {
+                friends[index].todayRecord = nil
+            }
+
+            // 주가 차트 데이터 매핑
+            let chartDto = listingResponse.myStockChart
+            friends[index].currentPrice = Double(chartDto.currentPrice)
+            friends[index].change = parseChangePercent(chartDto.changePercent)
+
+            friends[index].priceHistory = chartDto.chartData.map { point in
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd"
+                let date = formatter.date(from: point.date) ?? Date()
+                return PriceHistoryPoint(date: date, price: Double(point.price))
+            }
+
+            friends[index].sparklineData = friends[index].priceHistory.map { $0.price }
+        } catch {
+            print("Failed to fetch friend listing for userId \(friendUserId): \(error)")
+        }
+    }
+
     // MARK: - 투두 상장
     @MainActor
     func listTodayTodos(items: [TodoItem]) async -> Bool {
@@ -589,9 +638,21 @@ class AppState: ObservableObject {
     }
     
     // MARK: - 투두 완성 취소
-    func uncompleteTodoItem(itemId: UUID) {
-        // Backend doesn't support uncomplete yet.
-        print("Uncomplete not supported by backend")
+    @MainActor
+    func uncompleteTodoItem(itemId: UUID) async {
+        guard let record = myTodayRecord,
+              let item = record.todoItems.first(where: { $0.id == itemId }),
+              let backendId = item.backendId else {
+            print("Cannot uncomplete todo: missing backend ID")
+            return
+        }
+
+        do {
+            try await NetworkManager.shared.requestVoid("/listing/\(backendId)/uncomplete", method: "POST")
+            await fetchMyData()
+        } catch {
+            print("Failed to uncomplete todo: \(error)")
+        }
     }
 
     // MARK: - 자정 정산 (주가 확정)

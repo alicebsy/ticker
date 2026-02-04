@@ -50,5 +50,6 @@ public class ListingResponse {
         private String deadline;       // 2024-02-01
         private Long reward;           // 500P
         private Integer progress;      // 66 (%)
+        private Boolean completed;     // 완료 여부
     }
 }

@@ -75,16 +75,6 @@ public class DataLoader implements CommandLineRunner {
 
         userRepository.saveAll(List.of(user1, user2, user3, user4));
 
-        // 내 주가 차트용 이력 (user1, 1주당 가격)
-        for (int i = 6; i >= 0; i--) {
-            StockPriceHistory h = StockPriceHistory.builder()
-                    .user(user1)
-                    .price(1000L + i * 10L)
-                    .recordDate(LocalDate.now().minusDays(i))
-                    .build();
-            stockPriceHistoryRepository.save(h);
-        }
-
         // 암시장 스킬 아이템
         MarketItem skill1 = MarketItem.builder()
                 .name("도박 취소권")

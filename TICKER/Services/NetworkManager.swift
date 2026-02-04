@@ -118,6 +118,11 @@ class NetworkManager: ObservableObject {
         try await requestVoid("/watchlist/friends/\(requesterId)/reject", method: "POST")
     }
     
+    // MARK: - Friend Listing
+    func fetchFriendListing(userId: Int, period: String = "7D") async throws -> ListingResponse {
+        return try await request("/listing/user/\(userId)?period=\(period)")
+    }
+
     func getCasino() async throws -> CasinoGameResponse {
         return try await request("/casino")
     }

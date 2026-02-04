@@ -34,6 +34,17 @@ public class ListingController {
     }
 
     /**
+     * 다른 유저(친구)의 상장 화면 데이터 조회
+     * 친구 프로필에서 투두 항목 + 주가 변동률을 보기 위한 엔드포인트
+     */
+    @GetMapping("/user/{targetUserId}")
+    public ResponseEntity<ListingResponse> getUserListing(
+            @PathVariable Long targetUserId,
+            @RequestParam(defaultValue = "7D") String period) {
+        return ResponseEntity.ok(listingService.getListing(targetUserId, period));
+    }
+
+    /**
      * 신규 상장 - 할 일 등록
      */
     @PostMapping
@@ -52,6 +63,17 @@ public class ListingController {
             @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId,
             @PathVariable Long todoId) {
         listingService.completeTodo(todoId, userId);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 할 일 완료 취소 (다시 상장 중으로 복원)
+     */
+    @PostMapping("/{todoId}/uncomplete")
+    public ResponseEntity<Void> uncompleteTodo(
+            @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId,
+            @PathVariable Long todoId) {
+        listingService.uncompleteTodo(todoId, userId);
         return ResponseEntity.ok().build();
     }
 

@@ -201,7 +201,7 @@ struct ListingView: View {
                     TodoItemRow(item: item) {
                         Task {
                             if item.isCompleted {
-                                appState.uncompleteTodoItem(itemId: item.id)
+                                await appState.uncompleteTodoItem(itemId: item.id)
                             } else {
                                 await appState.completeTodoItem(itemId: item.id)
                             }

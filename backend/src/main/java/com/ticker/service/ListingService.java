@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -72,29 +73,86 @@ public class ListingService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
 
-        // 기간별 주가 차트 (1D, 7D, 1M)
-        LocalDate fromDate = getFromDateByPeriod(period);
+        // 주가 차트: 회원가입일부터 전체 이력
+        LocalDate fromDate = user.getCreatedAt().toLocalDate();
+        LocalDate today = LocalDate.now();
         List<StockPriceHistory> history = stockPriceHistoryRepository
                 .findByUserIdAndRecordDateAfterOrderByRecordDateAsc(userId, fromDate);
 
-        List<ListingResponse.ChartPointDto> chartData = history.stream()
-                .map(h -> new ListingResponse.ChartPointDto(
-                        h.getRecordDate().toString(),
-                        h.getPrice()
-                ))
-                .collect(Collectors.toList());
+        List<ListingResponse.ChartPointDto> chartData = new java.util.ArrayList<>();
 
-        // 차트 데이터가 없으면 현재 주가로 1점
-        if (chartData.isEmpty()) {
+        // 첫 포인트: 회원가입일의 초기 주가 (1,000원)
+        boolean hasRegistrationDate = history.stream()
+                .anyMatch(h -> h.getRecordDate().equals(fromDate));
+        if (!hasRegistrationDate) {
             chartData.add(new ListingResponse.ChartPointDto(
-                    LocalDate.now().toString(),
-                    user.getStockPrice()
+                    fromDate.toString(),
+                    1000L
             ));
         }
 
-        String changePercent = user.getConsecutiveUpDays() > 0
-                ? String.format("+%.2f%%", 3.85)
-                : "— 0.00%";
+        // 기존 이력 추가
+        history.forEach(h -> chartData.add(new ListingResponse.ChartPointDto(
+                h.getRecordDate().toString(),
+                h.getPrice()
+        )));
+
+        // 오늘 포인트: 현재 주가 (완성률 반영된 예상 주가)
+        // 오늘 가입한 유저의 경우 시작점(1000원)과 현재점을 모두 보여주기 위해
+        // 같은 날짜라도 별도 포인트로 추가 (시작가 vs 현재가)
+        if (fromDate.equals(today)) {
+            // 오늘 가입: 첫 포인트(1000원)는 이미 추가됨, 현재가가 다르면 추가 포인트
+            if (user.getStockPrice() != 1000L) {
+                chartData.add(new ListingResponse.ChartPointDto(
+                        today.toString(),
+                        user.getStockPrice()
+                ));
+            }
+        } else {
+            // 이전에 가입한 유저: 오늘 포인트가 없으면 추가, 있으면 업데이트
+            boolean hasTodayPoint = chartData.stream()
+                    .anyMatch(p -> p.getDate().equals(today.toString()));
+            if (!hasTodayPoint) {
+                chartData.add(new ListingResponse.ChartPointDto(
+                        today.toString(),
+                        user.getStockPrice()
+                ));
+            } else {
+                chartData.stream()
+                        .filter(p -> p.getDate().equals(today.toString()))
+                        .findFirst()
+                        .ifPresent(p -> p.setPrice(user.getStockPrice()));
+            }
+        }
+
+        // 오늘 투두 완성률 기반 예상 주가 변동폭 계산
+        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
+        LocalDateTime endOfDay = LocalDate.now().plusDays(1).atStartOfDay();
+        List<Todo> todayTodos = todoRepository.findByOwnerIdAndCreatedAtToday(userId, startOfDay, endOfDay);
+
+        String changePercent;
+        if (!todayTodos.isEmpty()) {
+            long completedCount = todayTodos.stream()
+                    .filter(t -> t.getStatus() == TodoStatus.COMPLETED)
+                    .count();
+            double ratio = (double) completedCount / todayTodos.size();
+            double changePct;
+            if (ratio >= 1.0) {
+                changePct = 12.5; // +10~15% 중간값
+            } else if (ratio >= 0.75) {
+                changePct = 5.0;
+            } else if (ratio >= 0.50) {
+                changePct = 0.0;
+            } else if (ratio >= 0.25) {
+                changePct = -10.0;
+            } else {
+                changePct = -20.0;
+            }
+            changePercent = String.format("%+.2f%%", changePct);
+        } else {
+            changePercent = "— 0.00%";
+        }
+
         String status = user.getConsecutiveUpDays() > 0
                 ? "연속 " + user.getConsecutiveUpDays() + "일 상승"
                 : "";
@@ -106,15 +164,15 @@ public class ListingService {
                 chartData
         );
 
-        // 상장 중인 종목
-        List<Todo> todos = todoRepository.findByOwnerIdAndStatusOrderByCreatedAtDesc(userId, TodoStatus.LISTED);
-        List<ListingResponse.ListedTodoDto> todoDtos = todos.stream()
+        // 오늘의 투두 전체 (LISTED + COMPLETED 모두 포함) - 위에서 이미 조회한 todayTodos 재사용
+        List<ListingResponse.ListedTodoDto> todoDtos = todayTodos.stream()
                 .map(t -> new ListingResponse.ListedTodoDto(
                         t.getId(),
                         t.getName(),
                         t.getDeadline().toString(),
                         t.getRewardPoints(),
-                        t.getProgress()
+                        t.getProgress(),
+                        t.getStatus() == TodoStatus.COMPLETED
                 ))
                 .collect(Collectors.toList());
 
@@ -151,12 +209,91 @@ public class ListingService {
         }
         todo.setStatus(TodoStatus.COMPLETED);
         todo.setProgress(100);
+        todo.setCompletedAt(LocalDateTime.now());
         todoRepository.save(todo);
 
         // 완료 체크 시 그래프·목록 실시간 반영 (다른 사람들 화면에도 바로 반영)
         notificationService.sendListingUpdate(todo.getOwner().getId(), todoId, 100, true);
         // 해당 할 일에 걸린 베팅 정산 (성공 예측 → 적중 시 배당 지급)
         casinoService.settleBetsForTodo(todoId, true);
+
+        // 완료 시 예상 주가를 즉시 반영
+        updateProjectedStockPrice(userId);
+    }
+
+    /**
+     * 할 일 완료 취소 - 다시 상장 중으로 복원
+     */
+    @Transactional
+    public void uncompleteTodo(Long todoId, Long userId) {
+        Todo todo = todoRepository.findById(todoId)
+                .orElseThrow(() -> new IllegalArgumentException("할 일을 찾을 수 없습니다: " + todoId));
+        if (!todo.getOwner().getId().equals(userId)) {
+            throw new IllegalArgumentException("본인의 할 일만 수정할 수 있습니다");
+        }
+        todo.setStatus(TodoStatus.LISTED);
+        todo.setProgress(0);
+        todo.setCompletedAt(null);
+        todoRepository.save(todo);
+
+        notificationService.sendListingUpdate(todo.getOwner().getId(), todoId, 0, false);
+
+        // 취소 시 예상 주가를 즉시 반영
+        updateProjectedStockPrice(userId);
+    }
+
+    /**
+     * 오늘 완성률 기반 예상 주가를 계산하여 즉시 반영 (차트 실시간 업데이트용)
+     */
+    private void updateProjectedStockPrice(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다"));
+
+        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
+        LocalDateTime endOfDay = LocalDate.now().plusDays(1).atStartOfDay();
+        List<Todo> todayTodos = todoRepository.findByOwnerIdAndCreatedAtToday(userId, startOfDay, endOfDay);
+
+        if (todayTodos.isEmpty()) return;
+
+        long completedCount = todayTodos.stream()
+                .filter(t -> t.getStatus() == TodoStatus.COMPLETED)
+                .count();
+        double ratio = (double) completedCount / todayTodos.size();
+
+        // 기준 주가: 어제까지의 가장 최근 기록, 없으면 초기 주가 1000원
+        LocalDate today = LocalDate.now();
+        List<StockPriceHistory> histories = stockPriceHistoryRepository
+                .findByUserIdAndRecordDateAfterOrderByRecordDateAsc(userId, today.minusDays(30));
+        // 오늘 이전의 가장 마지막 기록을 기준가로 사용
+        long basePrice = 1000L; // 초기 주가 (이전 기록 없을 때 기본값)
+        for (StockPriceHistory h : histories) {
+            if (h.getRecordDate().isBefore(today)) {
+                basePrice = h.getPrice();
+            }
+        }
+
+        double changePct;
+        if (ratio >= 1.0) {
+            changePct = 12.5; // 10~15% 중간값
+        } else if (ratio >= 0.75) {
+            changePct = 5.0;
+        } else if (ratio >= 0.50) {
+            changePct = 0.0;
+        } else if (ratio >= 0.25) {
+            changePct = -10.0;
+        } else {
+            changePct = -20.0;
+        }
+
+        long projectedPrice = Math.max(1, (long) (basePrice * (1 + changePct / 100.0)));
+        user.setStockPrice(projectedPrice);
+        long marketCap = projectedPrice * 100;
+        user.setMarketCap(marketCap);
+        user.setTotalAssets(user.getCashBalance() + marketCap);
+        userRepository.save(user);
+
+        // 실시간 주가 변동 알림
+        notificationService.sendStockPriceUpdate(user);
     }
 
     private LocalDate getFromDateByPeriod(String period) {

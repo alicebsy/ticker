@@ -19,7 +19,7 @@ struct PersonDetailView: View {
 
     // 내가 이 사람의 주식을 보유하고 있는지
     private var myHolding: Holding? {
-        appState.holdings.first(where: { $0.name == friend.name })
+        appState.holdings.first(where: { $0.name == liveFriend.name })
     }
 
     private var myHoldingQuantity: Int {
@@ -29,10 +29,10 @@ struct PersonDetailView: View {
     // 선택된 날짜의 기록
     private var selectedRecord: DailyRecord? {
         if selectedDateOffset == 0 {
-            return friend.todayRecord
+            return liveFriend.todayRecord
         } else {
             let targetDate = Calendar.current.date(byAdding: .day, value: selectedDateOffset, to: Date()) ?? Date()
-            return friend.dailyRecords.first { record in
+            return liveFriend.dailyRecords.first { record in
                 Calendar.current.isDate(record.date, inSameDayAs: targetDate)
             }
         }
@@ -44,6 +44,11 @@ struct PersonDetailView: View {
         formatter.dateFormat = "M월 d일 (E)"
         formatter.locale = Locale(identifier: "ko_KR")
         return formatter.string(from: date)
+    }
+
+    // appState.friends 에서 실시간 데이터를 참조
+    private var liveFriend: Friend {
+        appState.friends.first(where: { $0.userId == friend.userId }) ?? friend
     }
 
     var body: some View {
@@ -92,28 +97,31 @@ struct PersonDetailView: View {
         } message: {
             Text(alertMessage)
         }
+        .task {
+            await appState.fetchFriendListing(friendUserId: friend.userId)
+        }
     }
 
     // MARK: - Header Section
     private var headerSection: some View {
         VStack(spacing: 12) {
-            AvatarView(name: friend.name, color: friend.avatarColor, size: 64)
+            AvatarView(name: liveFriend.name, color: liveFriend.avatarColor, size: 64)
 
-            Text(friend.name)
+            Text(liveFriend.name)
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(AppTheme.primaryText)
 
-            Text(friend.ticker)
+            Text(liveFriend.ticker)
                 .font(.subheadline)
                 .foregroundStyle(AppTheme.secondaryText)
 
             // 현재 주가 (크게)
             HStack(spacing: 8) {
-                Text(formatCurrency(Int(friend.currentPrice)) + "원")
+                Text(formatCurrency(Int(liveFriend.currentPrice)) + "원")
                     .font(.system(size: 28, weight: .bold).monospacedDigit())
                     .foregroundStyle(AppTheme.primaryText)
 
-                PriceChangeBadge(change: friend.change)
+                PriceChangeBadge(change: liveFriend.change)
             }
 
             // 시가총액 (가치)
@@ -121,14 +129,14 @@ struct PersonDetailView: View {
                 Text("시가총액 (가치)")
                     .font(.caption)
                     .foregroundStyle(AppTheme.secondaryText)
-                Text(formatCurrency(Int(friend.marketCap)) + "원")
+                Text(formatCurrency(Int(liveFriend.marketCap)) + "원")
                     .font(.system(.headline, weight: .semibold).monospacedDigit())
                     .foregroundStyle(AppTheme.primaryText)
             }
 
             // 거래대금
-            if friend.tradingVolume > 0 {
-                Text("오늘 \(formatCurrency(Int(friend.tradingVolume)))원 거래됨")
+            if liveFriend.tradingVolume > 0 {
+                Text("오늘 \(formatCurrency(Int(liveFriend.tradingVolume)))원 거래됨")
                     .font(.caption)
                     .foregroundStyle(AppTheme.tertiaryText)
             }
@@ -144,12 +152,12 @@ struct PersonDetailView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(AppTheme.primaryText)
 
-            if friend.priceHistory.count > 1 {
+            if liveFriend.priceHistory.count > 1 {
                 // 날짜 표시가 있는 차트
-                DateChartView(priceHistory: friend.priceHistory)
+                DateChartView(priceHistory: liveFriend.priceHistory)
                     .frame(height: 120)
             } else {
-                SparklineView(data: friend.sparklineData, showGradient: true)
+                SparklineView(data: liveFriend.sparklineData, showGradient: true)
                     .frame(height: 100)
             }
         }
@@ -332,9 +340,9 @@ struct PersonDetailView: View {
                         .font(.caption)
                         .foregroundStyle(AppTheme.secondaryText)
                     Spacer()
-                    Text("\(friend.availableShares) / \(friend.floatShares) 주")
+                    Text("\(liveFriend.availableShares) / \(liveFriend.floatShares) 주")
                         .font(.system(.caption, weight: .semibold).monospacedDigit())
-                        .foregroundStyle(friend.availableShares > 0 ? AppTheme.gain : AppTheme.loss)
+                        .foregroundStyle(liveFriend.availableShares > 0 ? AppTheme.gain : AppTheme.loss)
                 }
             } else {
                 HStack {
@@ -376,7 +384,7 @@ struct PersonDetailView: View {
                         .multilineTextAlignment(.center)
 
                     Button {
-                        let maxQty = orderType == .buy ? friend.availableShares : myHoldingQuantity
+                        let maxQty = orderType == .buy ? liveFriend.availableShares : myHoldingQuantity
                         if quantity < maxQty {
                             quantity += 1
                         }
@@ -402,7 +410,7 @@ struct PersonDetailView: View {
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.secondaryText)
                 Spacer()
-                Text(formatCurrency(Int(friend.currentPrice) * quantity) + "원")
+                Text(formatCurrency(Int(liveFriend.currentPrice) * quantity) + "원")
                     .font(.system(.subheadline, weight: .semibold).monospacedDigit())
                     .foregroundStyle(AppTheme.primaryText)
             }
@@ -443,7 +451,7 @@ struct PersonDetailView: View {
     private var canExecuteOrder: Bool {
         guard appState.isMarketOpen else { return false }
         if orderType == .buy {
-            return friend.availableShares >= quantity && appState.cash >= Int(friend.currentPrice * Double(quantity))
+            return liveFriend.availableShares >= quantity && appState.cash >= Int(liveFriend.currentPrice * Double(quantity))
         } else {
             return myHoldingQuantity >= quantity
         }
@@ -453,13 +461,13 @@ struct PersonDetailView: View {
         Task {
             if orderType == .buy {
                 let success = await appState.buyStock(
-                    friendName: friend.name,
+                    friendName: liveFriend.name,
                     quantity: quantity,
-                    pricePerShare: friend.currentPrice
+                    pricePerShare: liveFriend.currentPrice
                 )
                 if success {
                     alertTitle = "매수 완료"
-                    alertMessage = "\(friend.name) \(quantity)주 매수 완료!"
+                    alertMessage = "\(liveFriend.name) \(quantity)주 매수 완료!"
                     showAlert = true
                     quantity = 1
                 } else {
@@ -469,13 +477,13 @@ struct PersonDetailView: View {
                 }
             } else {
                 let success = await appState.sellStock(
-                    friendName: friend.name,
+                    friendName: liveFriend.name,
                     quantity: quantity,
-                    pricePerShare: friend.currentPrice
+                    pricePerShare: liveFriend.currentPrice
                 )
                 if success {
                     alertTitle = "매도 완료"
-                    alertMessage = "\(friend.name) \(quantity)주 매도 완료!"
+                    alertMessage = "\(liveFriend.name) \(quantity)주 매도 완료!"
                     showAlert = true
                     quantity = 1
                 } else {
