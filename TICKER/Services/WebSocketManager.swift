@@ -5,7 +5,7 @@ public class WebSocketManager: NSObject, ObservableObject {
     public static let shared = WebSocketManager()
     
     private var webSocketTask: URLSessionWebSocketTask?
-    private let url = URL(string: "ws://127.0.0.1:8080/ws/websocket")!
+    private let url = URL(string: "ws://10.249.19.34:8080/ws/websocket")!
     
     @Published var isConnected = false
     
