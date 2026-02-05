@@ -25,6 +25,7 @@ public class ProphecyService {
     private final UserRepository userRepository;
     private final FriendshipRepository friendshipRepository;
     private final ActivityService activityService;
+    private final NotificationService notificationService;
 
     // ==================== 예언 관리 ====================
 
@@ -96,7 +97,8 @@ public class ProphecyService {
      * 예언 종료 및 정산 (수행자가 결과 입력)
      *
      * 정산 로직:
-     * - 승리자에게 돌아갈 금액 = 본인 배팅금 + (상대측 배팅 총액 / 승리자 수)
+     * - 승리자에게 돌아갈 금액 = 본인 배팅금 + (상대측 배팅 총액 / (승리자 수 + 1))
+     * - 예언 등록자도 보너스 풀에서 1인분 받음
      */
     @Transactional
     public ProphecyDto closeProphecy(Long userId, Long prophecyId, CloseProphecyRequest request) {
@@ -116,12 +118,14 @@ public class ProphecyService {
         prophecy.setResult(success);
         prophecy.setClosedAt(LocalDateTime.now());
 
-        // 정산 실행
-        settleProphecyBets(prophecyId, success);
+        // 정산 실행 (예언 등록자도 보너스 받음)
+        long ownerBonus = settleProphecyBets(prophecy, success);
 
         prophecyRepository.save(prophecy);
+
+        String resultText = success ? "성공" : "실패";
         activityService.addActivity(userId, "PROPHECY",
-                "예언 종료 (" + (success ? "성공" : "실패") + "): " + prophecy.getContent(), 0);
+                "예언 종료 (" + resultText + "): " + prophecy.getContent(), ownerBonus);
 
         return toDto(prophecy);
     }
@@ -198,15 +202,28 @@ public class ProphecyService {
      * 예언 배팅 정산
      *
      * 정산 공식:
-     * - 승리 풀: 맞춘 쪽의 총 배팅액
      * - 패배 풀: 틀린 쪽의 총 배팅액
-     * - 승리자 수: 맞춘 쪽 배팅자 수
-     * - 각 승리자 수익 = 본인 배팅금 + (패배 풀 / 승리자 수)
+     * - 배분 인원: 승리자 수 + 1 (예언 등록자 포함)
+     * - 각 승리자 수익 = 본인 배팅금 + (패배 풀 / 배분 인원)
+     * - 예언 등록자 보너스 = 패배 풀 / 배분 인원
+     *
+     * @return 예언 등록자가 받은 보너스 금액
      */
-    private void settleProphecyBets(Long prophecyId, boolean success) {
+    private long settleProphecyBets(Prophecy prophecy, boolean success) {
+        Long prophecyId = prophecy.getId();
+        User owner = prophecy.getOwner();
+        String resultText = success ? "성공" : "실패";
+
         List<ProphecyBet> bets = prophecyBetRepository.findByProphecyIdAndStatus(prophecyId, BetStatus.IN_PROGRESS);
 
-        if (bets.isEmpty()) return;
+        // 배팅이 없으면 알림만 보내고 종료
+        if (bets.isEmpty()) {
+            notificationService.sendToUser(owner.getId(), NotificationDto.builder()
+                    .type("PROPHECY_CLOSED")
+                    .message("예언 '" + prophecy.getContent() + "'이 " + resultText + "으로 종료되었습니다. (배팅 없음)")
+                    .build());
+            return 0;
+        }
 
         // 승리자/패배자 분리
         List<ProphecyBet> winners = bets.stream()
@@ -220,25 +237,42 @@ public class ProphecyService {
         // 패배 풀 계산
         long loserPool = losers.stream().mapToLong(ProphecyBet::getAmount).sum();
 
-        // 승리자가 없으면 모두 패배 처리
+        // 승리자가 없으면 모두 패배 처리, 예언 등록자가 전액 가져감
         if (winners.isEmpty()) {
             for (ProphecyBet loser : losers) {
                 loser.setStatus(BetStatus.MISS);
                 loser.setProfitLoss(-loser.getAmount());
                 loser.setSettledAt(LocalDateTime.now());
                 prophecyBetRepository.save(loser);
+
+                // 패배자에게 알림
+                notificationService.sendToUser(loser.getBettor().getId(), NotificationDto.builder()
+                        .type("PROPHECY_BET_RESULT")
+                        .message("예언 '" + prophecy.getContent() + "' 배팅 실패! -" + loser.getAmount() + "P")
+                        .build());
             }
-            return;
+
+            // 예언 등록자가 패배 풀 전액 가져감
+            owner.setCashBalance(owner.getCashBalance() + loserPool);
+            userRepository.save(owner);
+
+            notificationService.sendToUser(owner.getId(), NotificationDto.builder()
+                    .type("PROPHECY_CLOSED")
+                    .message("예언 '" + prophecy.getContent() + "'이 " + resultText + "! 보너스 +" + loserPool + "P 획득!")
+                    .build());
+
+            return loserPool;
         }
 
-        // 승리자에게 배분할 금액 = 패배 풀 / 승리자 수
-        long bonusPerWinner = loserPool / winners.size();
+        // 배분 인원 = 승리자 수 + 1 (예언 등록자)
+        int divideCount = winners.size() + 1;
+        long bonusPerPerson = loserPool / divideCount;
 
         // 승리자 정산: 본인 배팅금 + 보너스
         for (ProphecyBet winner : winners) {
-            long payout = winner.getAmount() + bonusPerWinner;
+            long payout = winner.getAmount() + bonusPerPerson;
             winner.setStatus(BetStatus.HIT);
-            winner.setProfitLoss(bonusPerWinner);  // 수익 = 보너스 금액
+            winner.setProfitLoss(bonusPerPerson);
             winner.setSettledAt(LocalDateTime.now());
             prophecyBetRepository.save(winner);
 
@@ -246,6 +280,12 @@ public class ProphecyService {
             User bettor = winner.getBettor();
             bettor.setCashBalance(bettor.getCashBalance() + payout);
             userRepository.save(bettor);
+
+            // 승리자에게 알림
+            notificationService.sendToUser(bettor.getId(), NotificationDto.builder()
+                    .type("PROPHECY_BET_RESULT")
+                    .message("예언 '" + prophecy.getContent() + "' 배팅 적중! +" + bonusPerPerson + "P 획득!")
+                    .build());
         }
 
         // 패배자 정산
@@ -254,7 +294,24 @@ public class ProphecyService {
             loser.setProfitLoss(-loser.getAmount());
             loser.setSettledAt(LocalDateTime.now());
             prophecyBetRepository.save(loser);
+
+            // 패배자에게 알림
+            notificationService.sendToUser(loser.getBettor().getId(), NotificationDto.builder()
+                    .type("PROPHECY_BET_RESULT")
+                    .message("예언 '" + prophecy.getContent() + "' 배팅 실패! -" + loser.getAmount() + "P")
+                    .build());
         }
+
+        // 예언 등록자도 보너스 받음
+        owner.setCashBalance(owner.getCashBalance() + bonusPerPerson);
+        userRepository.save(owner);
+
+        notificationService.sendToUser(owner.getId(), NotificationDto.builder()
+                .type("PROPHECY_CLOSED")
+                .message("예언 '" + prophecy.getContent() + "'이 " + resultText + "! 보너스 +" + bonusPerPerson + "P 획득!")
+                .build());
+
+        return bonusPerPerson;
     }
 
     // ==================== DTO 변환 ====================

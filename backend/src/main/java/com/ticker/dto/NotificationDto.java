@@ -60,4 +60,8 @@ public class NotificationDto {
     public static final String TYPE_BET_PLACED = "BET_PLACED";
     /** 나를 관심 종목에 추가함 */
     public static final String TYPE_ADDED_TO_WATCHLIST = "ADDED_TO_WATCHLIST";
+    /** 예언 종료됨 (예언 등록자에게) */
+    public static final String TYPE_PROPHECY_CLOSED = "PROPHECY_CLOSED";
+    /** 예언 배팅 결과 (배팅 참여자에게) */
+    public static final String TYPE_PROPHECY_BET_RESULT = "PROPHECY_BET_RESULT";
 }

@@ -451,6 +451,8 @@ enum NotificationType: String {
     case investmentChanged = "INVESTMENT_CHANGED"
     case betPlaced = "BET_PLACED"
     case addedToWatchlist = "ADDED_TO_WATCHLIST"
+    case prophecyClosed = "PROPHECY_CLOSED"
+    case prophecyBetResult = "PROPHECY_BET_RESULT"
 }
 
 /// 백엔드 GET /api/users/{id} 응답 (User 엔티티 직렬화)

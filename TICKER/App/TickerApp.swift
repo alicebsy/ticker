@@ -179,6 +179,14 @@ class AppState: ObservableObject {
         case .betPlaced, .addedToWatchlist:
             // Could show a toast or local notification
             print("Toast: \(notification.message)")
+        case .prophecyClosed, .prophecyBetResult:
+            // 예언 관련 알림 - 데이터 새로고침 및 알림 표시
+            Task {
+                await fetchProphecyData()
+                await fetchMyData()
+            }
+            // 알림 메시지 표시 (향후 토스트나 배너로 개선 가능)
+            print("🎲 Prophecy Notification: \(notification.message)")
         }
     }
     
