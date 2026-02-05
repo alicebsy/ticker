@@ -132,7 +132,31 @@ class AppState: ObservableObject {
         WebSocketManager.shared.onMessageReceived = { [weak self] notification in
             self?.handleRealTimeNotification(notification)
         }
+        WebSocketManager.shared.onNewsCommentReceived = { [weak self] postId, commentDto in
+            Task { @MainActor in
+                self?.appendNewsCommentFromSocket(postId: postId, commentDto: commentDto)
+            }
+        }
         WebSocketManager.shared.connect(userId: userId)
+    }
+
+    /// 뉴스 글 상세 보는 중일 때 해당 글의 댓글 소켓 구독 (실시간 반영)
+    func subscribeToNewsComments(postId: Int) {
+        WebSocketManager.shared.subscribe(to: "/topic/news/\(postId)/comments")
+    }
+
+    @MainActor
+    private func appendNewsCommentFromSocket(postId: Int, commentDto: NewsCommentDto) {
+        let comment = commentDto.toNewsComment()
+        if let idx = newsPosts.firstIndex(where: { $0.id == postId }) {
+            if !newsPosts[idx].comments.contains(where: { $0.id == comment.id }) {
+                newsPosts[idx].comments.append(comment)
+            }
+        }
+        if var cached = newsPostDetailCache[postId], !cached.comments.contains(where: { $0.id == comment.id }) {
+            cached.comments.append(comment)
+            newsPostDetailCache[postId] = cached
+        }
     }
     
     private func handleRealTimeNotification(_ notification: NotificationDto) {
@@ -293,9 +317,8 @@ class AppState: ObservableObject {
             }
             
             self.friendRequests = combinedRequests
-            // 4. News
-            await fetchNews(category: nil)
-            // 5. Listing (My Stock & Todos)
+            // 뉴스는 뉴스 탭에서만 로드 (fetchMyData마다 덮어쓰면 댓글 등이 사라짐)
+            // 4. Listing (My Stock & Todos)
             let listingResponse: ListingResponse = try await NetworkManager.shared.request("/listing")
             
             // Map listedTodos to DailyRecord (LISTED + COMPLETED 모두 포함)
@@ -398,6 +421,12 @@ class AppState: ObservableObject {
 
     // 뉴스 / 커뮤니티 (서버에서 로드)
     @Published var newsPosts: [NewsPost] = []
+    /// 글 상세(댓글 포함) 캐시. 탭/카테고리 전환해도 댓글이 유지되도록.
+    @Published var newsPostDetailCache: [Int: NewsPost] = [:]
+    /// 목록 + 캐시 병합: 캐시에 있으면 댓글 포함된 글 사용
+    var mergedNewsPosts: [NewsPost] {
+        newsPosts.map { newsPostDetailCache[$0.id] ?? $0 }
+    }
 
     // 활동 내역
     @Published var activities: [TickerActivity] = []
@@ -777,7 +806,15 @@ class AppState: ObservableObject {
         do {
             let cat: String? = category == nil || category == .all ? nil : category!.backendValue
             let list: [NewsPostDto] = try await NetworkManager.shared.fetchNews(category: cat)
-            self.newsPosts = list.map { $0.toNewsPost() }
+            var newPosts = list.map { $0.toNewsPost() }
+            // 이미 불러온 댓글·API 개수 유지 (목록 API는 comments 미포함)
+            for i in newPosts.indices {
+                if let existing = newsPosts.first(where: { $0.id == newPosts[i].id }) {
+                    if !existing.comments.isEmpty { newPosts[i].comments = existing.comments }
+                    if existing.commentCountFromApi != nil { newPosts[i].commentCountFromApi = existing.commentCountFromApi }
+                }
+            }
+            self.newsPosts = newPosts
         } catch {
             print("Failed to fetch news: \(error)")
         }
@@ -792,6 +829,17 @@ class AppState: ObservableObject {
             print("Failed to fetch news detail: \(error)")
             return nil
         }
+    }
+
+    /// 글 상세(댓글 포함) 로드 후 newsPosts + 캐시에 반영. 탭/카테고리 전환해도 댓글 유지.
+    @MainActor
+    func loadNewsPostDetail(postId: Int) async -> NewsPost? {
+        guard let full = await fetchNewsDetail(postId: postId) else { return nil }
+        if let idx = newsPosts.firstIndex(where: { $0.id == postId }) {
+            newsPosts[idx] = full
+        }
+        newsPostDetailCache[postId] = full
+        return full
     }
 
     @MainActor
@@ -815,6 +863,7 @@ class AppState: ObservableObject {
             if let idx = self.newsPosts.firstIndex(where: { $0.id == postId }) {
                 self.newsPosts[idx] = post
             }
+            newsPostDetailCache[postId] = post
             return post
         } catch {
             print("Failed to update news post: \(error)")
@@ -827,6 +876,7 @@ class AppState: ObservableObject {
         do {
             try await NetworkManager.shared.deleteNewsPost(postId: postId)
             self.newsPosts.removeAll { $0.id == postId }
+            newsPostDetailCache.removeValue(forKey: postId)
             return true
         } catch {
             print("Failed to delete news post: \(error)")
@@ -842,6 +892,10 @@ class AppState: ObservableObject {
             if let idx = self.newsPosts.firstIndex(where: { $0.id == postId }) {
                 self.newsPosts[idx].comments.append(comment)
             }
+            if var cached = newsPostDetailCache[postId] {
+                cached.comments.append(comment)
+                newsPostDetailCache[postId] = cached
+            }
             return comment
         } catch {
             print("Failed to add comment: \(error)")
@@ -855,6 +909,10 @@ class AppState: ObservableObject {
             try await NetworkManager.shared.likeNewsPost(postId: postId)
             if let idx = self.newsPosts.firstIndex(where: { $0.id == postId }) {
                 self.newsPosts[idx].likes += 1
+            }
+            if var cached = newsPostDetailCache[postId] {
+                cached.likes += 1
+                newsPostDetailCache[postId] = cached
             }
         } catch {
             print("Failed to like post: \(error)")

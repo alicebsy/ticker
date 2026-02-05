@@ -418,7 +418,7 @@ struct PortfolioView: View {
                                     Image(systemName: "bubble.right.fill")
                                         .font(.system(size: 8))
                                         .foregroundStyle(.cyan.opacity(0.7))
-                                    Text("\(post.comments.count)")
+                                    Text("\(post.displayCommentCount)")
                                         .font(.caption2)
                                         .foregroundStyle(AppTheme.tertiaryText)
                                 }

@@ -25,6 +25,7 @@
 
 /* Begin PBXFileReference section */
 		A4F6DF0B2F2DA50A007CB767 /* TICKER.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TICKER.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A4F6DF4B2F2DA50A007CB768 /* TICKER2.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TICKER2.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A4F6DF1C2F2DA50E007CB767 /* TICKERTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TICKERTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A4F6DF262F2DA50E007CB767 /* TICKERUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TICKERUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -86,6 +87,7 @@
 			isa = PBXGroup;
 			children = (
 				A4F6DF0B2F2DA50A007CB767 /* TICKER.app */,
+				A4F6DF4B2F2DA50A007CB768 /* TICKER2.app */,
 				A4F6DF1C2F2DA50E007CB767 /* TICKERTests.xctest */,
 				A4F6DF262F2DA50E007CB767 /* TICKERUITests.xctest */,
 			);
@@ -210,6 +212,13 @@
 
 /* Begin PBXResourcesBuildPhase section */
 		A4F6DF092F2DA50A007CB767 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A4F6DF492F2DA50A007CB768 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (

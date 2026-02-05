@@ -1,7 +1,9 @@
 # Ticker Backend
 
 Human Stock Market - 주식 컨셉 투두리스트 백엔드  
-친구들이 서로의 할 일에 배팅하고 투자하는 Spring Boot API
+친구들이 서로의 할 일에 배팅하고 투자하는 Spring Boot API.
+
+**계산 로직**(주가·총자산·투자·베팅·공모가 등)은 프로젝트 루트 [README.md](../README.md)의 **계산 로직** 섹션을 참고하세요.
 
 ## 실행 방법
 
@@ -90,14 +92,15 @@ H2 Console: `http://localhost:8080/h2-console`
 
 ### 1. 서버 실행
 
-**필수:** MySQL이 `localhost:3306`에서 실행 중이어야 합니다. (또는 `application.yml`에서 URL/계정 수정)
+**DB:** 기본값은 **H2 파일 DB** (`./data/ticker_db.mv.db`)입니다. 별도 설치 없이 `bootRun`만 하면 됩니다.
 
 ```bash
 cd backend
 ./gradlew bootRun
 ```
 
-정상 기동 시 터미널에 `Started TickerApplication` 이 보이고, 포트는 기본 **8080** 입니다.
+정상 기동 시 터미널에 `Started TickerApplication` 이 보이고, 포트는 기본 **8080** 입니다.  
+MySQL 사용 시 `application.yml`에서 datasource URL/드라이버를 MySQL로 변경하면 됩니다.
 
 ### 2. Swagger UI로 테스트 (추천)
 

@@ -9,8 +9,10 @@ public class WebSocketManager: NSObject, ObservableObject {
     
     @Published var isConnected = false
     
-    // Callback for received messages
+    // Callback for received messages (notifications)
     var onMessageReceived: ((NotificationDto) -> Void)?
+    // Callback for news comment (postId, comment DTO)
+    var onNewsCommentReceived: ((Int, NewsCommentDto) -> Void)?
     
     private override init() {
         super.init()
@@ -110,22 +112,44 @@ public class WebSocketManager: NSObject, ObservableObject {
         }
         
         if command == "MESSAGE" {
+            // Parse destination from headers (e.g. "destination:/topic/news/5/comments")
+            var destination: String?
+            for i in 1..<headerLines.count {
+                let line = headerLines[i]
+                if line.hasPrefix("destination:") {
+                    destination = String(line.dropFirst("destination:".count)).trimmingCharacters(in: .whitespaces)
+                    break
+                }
+            }
             // Body is everything after the first \n\n
-            if let bodyStartIndex = normalizedText.range(of: "\n\n")?.upperBound {
-                let remainder = String(normalizedText[bodyStartIndex...])
-                let body = remainder.trimmingCharacters(in: CharacterSet(charactersIn: "\0\n\r "))
-                
-                if let data = body.data(using: .utf8) {
+            guard let bodyStartIndex = normalizedText.range(of: "\n\n")?.upperBound else { return }
+            let remainder = String(normalizedText[bodyStartIndex...])
+            let body = remainder.trimmingCharacters(in: CharacterSet(charactersIn: "\0\n\r "))
+            guard let data = body.data(using: .utf8) else { return }
+            // News comment topic: /topic/news/{postId}/comments
+            if let dest = destination, dest.hasPrefix("/topic/news/"), dest.hasSuffix("/comments") {
+                let parts = dest.split(separator: "/")
+                if let postIdStr = parts.dropFirst(3).first, let postId = Int(postIdStr) {
                     do {
-                        let notification = try JSONDecoder().decode(NotificationDto.self, from: data)
+                        let comment = try JSONDecoder().decode(NewsCommentDto.self, from: data)
                         DispatchQueue.main.async {
-                            self.onMessageReceived?(notification)
+                            self.onNewsCommentReceived?(postId, comment)
                         }
                     } catch {
-                        print("Failed to decode STOMP message: \(error)")
-                        print("Raw body: \(body)")
+                        print("Failed to decode news comment: \(error)")
                     }
                 }
+                return
+            }
+            // Default: notification
+            do {
+                let notification = try JSONDecoder().decode(NotificationDto.self, from: data)
+                DispatchQueue.main.async {
+                    self.onMessageReceived?(notification)
+                }
+            } catch {
+                print("Failed to decode STOMP message: \(error)")
+                print("Raw body: \(body)")
             }
         }
     }

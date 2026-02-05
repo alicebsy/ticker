@@ -857,7 +857,9 @@ private func avatarColorFor(authorId: Int) -> Color {
 
 extension NewsPostDto {
     func toNewsPost() -> NewsPost {
-        NewsPost(
+        let commentList = (comments ?? []).map { $0.toNewsComment() }
+        let countFromApi = commentCount ?? commentList.count
+        return NewsPost(
             id: id,
             authorId: authorId,
             author: anonymous ? "익명" : authorName,
@@ -867,7 +869,8 @@ extension NewsPostDto {
             content: content,
             category: NewsCategory.fromBackend(category),
             likes: likes,
-            comments: (comments ?? []).map { $0.toNewsComment() },
+            comments: commentList,
+            commentCountFromApi: countFromApi,
             timestamp: parseNewsDate(timestamp),
             isAnonymous: anonymous
         )
@@ -897,8 +900,16 @@ struct NewsPost: Identifiable, Hashable {
     var category: NewsCategory
     var likes: Int
     var comments: [NewsComment]
+    /// 목록 API에서 오는 댓글 개수 (댓글 배열이 비어 있어도 개수만 표시용)
+    var commentCountFromApi: Int?
     var timestamp: Date
     var isAnonymous: Bool
+
+    /// 표시용 댓글 개수: 실제 로드된 댓글이 있으면 그 수, 없으면 API 개수
+    var displayCommentCount: Int {
+        if !comments.isEmpty { return comments.count }
+        return commentCountFromApi ?? 0
+    }
 
     var displayAuthor: String {
         isAnonymous ? "익명" : author
@@ -935,6 +946,7 @@ struct NewsPost: Identifiable, Hashable {
                 NewsComment(id: 1, author: "김철수", content: "저도 AI 쪽 투두 위주로 해요!", timestamp: Date().addingTimeInterval(-1800)),
                 NewsComment(id: 2, author: "최수진", content: "꾸준히 하면 주가 잘 오르더라구요", timestamp: Date().addingTimeInterval(-900)),
             ],
+            commentCountFromApi: nil,
             timestamp: Date().addingTimeInterval(-600),
             isAnonymous: false
         ),
@@ -951,6 +963,7 @@ struct NewsPost: Identifiable, Hashable {
             comments: [
                 NewsComment(id: 3, author: "익명", content: "투두 완성률 25% 미만이래요", timestamp: Date().addingTimeInterval(-3000)),
             ],
+            commentCountFromApi: nil,
             timestamp: Date().addingTimeInterval(-3600),
             isAnonymous: false
         ),
@@ -968,6 +981,7 @@ struct NewsPost: Identifiable, Hashable {
                 NewsComment(id: 4, author: "박지민", content: "좋은 팁이네요!", timestamp: Date().addingTimeInterval(-5400)),
                 NewsComment(id: 5, author: "정민호", content: "저도 따라해볼게요", timestamp: Date().addingTimeInterval(-4800)),
             ],
+            commentCountFromApi: nil,
             timestamp: Date().addingTimeInterval(-7200),
             isAnonymous: false
         ),
@@ -984,6 +998,7 @@ struct NewsPost: Identifiable, Hashable {
             comments: [
                 NewsComment(id: 6, author: "김철수", content: "ㅋㅋㅋㅋ 저도요...", timestamp: Date().addingTimeInterval(-10800)),
             ],
+            commentCountFromApi: nil,
             timestamp: Date().addingTimeInterval(-14400),
             isAnonymous: false
         ),
@@ -998,6 +1013,7 @@ struct NewsPost: Identifiable, Hashable {
             category: .analysis,
             likes: 18,
             comments: [],
+            commentCountFromApi: nil,
             timestamp: Date().addingTimeInterval(-28800),
             isAnonymous: false
         ),

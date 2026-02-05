@@ -6,11 +6,13 @@ struct NewsView: View {
     @State private var showNewPostSheet = false
     @State private var selectedPost: NewsPost? = nil
 
+    /// 목록은 캐시와 병합된 글 사용 (댓글 개수/내용 유지)
     private var filteredPosts: [NewsPost] {
+        let merged = appState.mergedNewsPosts
         if selectedCategory == .all {
-            return appState.newsPosts
+            return merged
         }
-        return appState.newsPosts.filter { $0.category == selectedCategory }
+        return merged.filter { $0.category == selectedCategory }
     }
 
     var body: some View {
@@ -87,8 +89,14 @@ struct NewsView: View {
                         ForEach(filteredPosts) { post in
                             NewsPostRow(post: post, isSelected: selectedPost?.id == post.id)
                                 .onTapGesture {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        selectedPost = post
+                                    Task {
+                                        await appState.loadNewsPostDetail(postId: post.id)
+                                        await MainActor.run {
+                                            withAnimation(.easeInOut(duration: 0.2)) {
+                                                selectedPost = appState.mergedNewsPosts.first(where: { $0.id == post.id }) ?? post
+                                                appState.subscribeToNewsComments(postId: post.id)
+                                            }
+                                        }
                                     }
                                 }
                         }
@@ -100,7 +108,10 @@ struct NewsView: View {
                     }
                     .onAppear {
                         Task {
-                            await appState.fetchNews(category: selectedCategory == .all ? nil : selectedCategory)
+                            // 다른 탭 갔다 돌아올 때마다 fetch하면 목록 API(댓글 없음)로 덮어써서 댓글이 사라짐 → 첫 진입·목록 비었을 때만 로드
+                            if appState.newsPosts.isEmpty {
+                                await appState.fetchNews(category: selectedCategory == .all ? nil : selectedCategory)
+                            }
                         }
                     }
 
@@ -125,12 +136,13 @@ struct NewsView: View {
             .frame(minWidth: 500)
             .background(AppTheme.background)
 
-            // MARK: - Right: Post Detail
+            // MARK: - Right: Post Detail (캐시 우선 사용 → 탭 전환해도 댓글 유지)
             if let post = selectedPost {
-                let postToShow = appState.newsPosts.first(where: { $0.id == post.id }) ?? post
+                let postToShow = appState.newsPostDetailCache[post.id] ?? appState.mergedNewsPosts.first(where: { $0.id == post.id }) ?? post
                 NewsPostDetailView(post: postToShow, onUpdate: { updatedPost in
                     if let index = appState.newsPosts.firstIndex(where: { $0.id == updatedPost.id }) {
                         appState.newsPosts[index] = updatedPost
+                        appState.newsPostDetailCache[updatedPost.id] = updatedPost
                         selectedPost = updatedPost
                     }
                 }, onDelete: {
@@ -244,7 +256,7 @@ struct NewsPostRow: View {
                         Image(systemName: "bubble.right.fill")
                             .font(.system(size: 10))
                             .foregroundStyle(.cyan.opacity(0.8))
-                        Text("\(post.comments.count)")
+                        Text("\(post.displayCommentCount)")
                             .font(.caption)
                             .foregroundStyle(AppTheme.tertiaryText)
                     }
@@ -366,9 +378,9 @@ struct NewsPostDetailView: View {
                         Button {
                             Task {
                                 await appState.likeNewsPost(postId: post.id)
-                                if let updated = appState.newsPosts.first(where: { $0.id == post.id }) {
-                                    onUpdate(updated)
-                                }
+if let updated = appState.newsPostDetailCache[post.id] ?? appState.newsPosts.first(where: { $0.id == post.id }) {
+                                onUpdate(updated)
+                            }
                             }
                         } label: {
                             HStack(spacing: 4) {
@@ -388,7 +400,7 @@ struct NewsPostDetailView: View {
                         HStack(spacing: 4) {
                             Image(systemName: "bubble.right")
                                 .font(.subheadline)
-                            Text("\(post.comments.count)")
+                            Text("\(post.displayCommentCount)")
                                 .font(.subheadline)
                         }
                         .foregroundStyle(AppTheme.secondaryText)
@@ -400,7 +412,7 @@ struct NewsPostDetailView: View {
 
                     // Comments
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("댓글 \(post.comments.count)")
+                        Text("댓글 \(post.displayCommentCount)")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(AppTheme.primaryText)
 
@@ -453,7 +465,7 @@ struct NewsPostDetailView: View {
                     Task {
                         if await appState.addNewsComment(postId: post.id, content: content) != nil {
                             newComment = ""
-                            if let updated = appState.newsPosts.first(where: { $0.id == post.id }) {
+                            if let updated = appState.newsPostDetailCache[post.id] ?? appState.newsPosts.first(where: { $0.id == post.id }) {
                                 onUpdate(updated)
                             }
                         }
