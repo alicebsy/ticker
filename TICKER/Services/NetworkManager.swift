@@ -221,10 +221,50 @@ class NetworkManager: ObservableObject {
     func getDarkMarket() async throws -> MarketResponse {
         return try await request("/dark-market")
     }
-    
+
     func purchaseItem(itemId: Int, quantity: Int) async throws {
         let req = PurchaseData(itemId: itemId, quantity: quantity)
         try await requestVoid("/dark-market/purchase", method: "POST", body: req)
+    }
+
+    // MARK: - Prophecy (사용자 정의 예언)
+
+    /// 나의 예언 등록
+    func createProphecy(content: String) async throws -> Prophecy {
+        let body = CreateProphecyRequest(content: content)
+        return try await request("/prophecies", method: "POST", body: body)
+    }
+
+    /// 나의 예언 목록
+    func getMyProphecies() async throws -> [Prophecy] {
+        return try await request("/prophecies/my")
+    }
+
+    /// 배팅 가능한 예언 목록 (친구들의 OPEN 예언)
+    func getBettableProphecies() async throws -> [Prophecy] {
+        return try await request("/prophecies/bettable")
+    }
+
+    /// 예언 상세 조회
+    func getProphecy(prophecyId: Int) async throws -> Prophecy {
+        return try await request("/prophecies/\(prophecyId)")
+    }
+
+    /// 예언 종료 (결과 입력)
+    func closeProphecy(prophecyId: Int, success: Bool) async throws -> Prophecy {
+        let body = CloseProphecyRequest(success: success)
+        return try await request("/prophecies/\(prophecyId)/close", method: "POST", body: body)
+    }
+
+    /// 예언에 배팅하기
+    func placeProphecyBet(prophecyId: Int, amount: Int, predictSuccess: Bool) async throws -> ProphecyBet {
+        let body = ProphecyBetRequest(prophecyId: prophecyId, amount: amount, predictSuccess: predictSuccess)
+        return try await request("/prophecies/bets", method: "POST", body: body)
+    }
+
+    /// 나의 예언 배팅 내역
+    func getMyProphecyBets() async throws -> [ProphecyBet] {
+        return try await request("/prophecies/bets/my")
     }
 }
 

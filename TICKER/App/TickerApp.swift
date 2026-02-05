@@ -411,6 +411,11 @@ class AppState: ObservableObject {
     @Published var casinoFriends: [CasinoFriend] = []
     @Published var bettingHistory: [BettingHistory] = []
     @Published var marketItems: [MarketItem] = []
+
+    // Prophecy (사용자 정의 예언)
+    @Published var myProphecies: [Prophecy] = []
+    @Published var bettableProphecies: [Prophecy] = []
+    @Published var myProphecyBets: [ProphecyBet] = []
     
     var myFriendCode: String {
         if let code = currentUser?.friendCode, !code.isEmpty {
@@ -800,6 +805,68 @@ class AppState: ObservableObject {
         }
     }
     
+    // MARK: - Prophecy (사용자 정의 예언)
+
+    @MainActor
+    func fetchProphecyData() async {
+        do {
+            async let myPropheciesTask = NetworkManager.shared.getMyProphecies()
+            async let bettableTask = NetworkManager.shared.getBettableProphecies()
+            async let myBetsTask = NetworkManager.shared.getMyProphecyBets()
+
+            let (myP, bettable, myBets) = try await (myPropheciesTask, bettableTask, myBetsTask)
+            self.myProphecies = myP
+            self.bettableProphecies = bettable
+            self.myProphecyBets = myBets
+        } catch {
+            print("Failed to fetch prophecy data: \(error)")
+        }
+    }
+
+    @MainActor
+    func createProphecy(content: String) async -> Bool {
+        do {
+            let prophecy = try await NetworkManager.shared.createProphecy(content: content)
+            self.myProphecies.insert(prophecy, at: 0)
+            return true
+        } catch {
+            print("Failed to create prophecy: \(error)")
+            return false
+        }
+    }
+
+    @MainActor
+    func closeProphecy(prophecyId: Int, success: Bool) async -> Bool {
+        do {
+            let updated = try await NetworkManager.shared.closeProphecy(prophecyId: prophecyId, success: success)
+            if let idx = self.myProphecies.firstIndex(where: { $0.id == prophecyId }) {
+                self.myProphecies[idx] = updated
+            }
+            // 배팅 내역도 새로고침 (정산됨)
+            await fetchProphecyData()
+            await fetchMyData()  // 잔액 업데이트
+            return true
+        } catch {
+            print("Failed to close prophecy: \(error)")
+            return false
+        }
+    }
+
+    @MainActor
+    func placeProphecyBet(prophecyId: Int, amount: Int, predictSuccess: Bool) async -> Bool {
+        do {
+            let bet = try await NetworkManager.shared.placeProphecyBet(prophecyId: prophecyId, amount: amount, predictSuccess: predictSuccess)
+            self.myProphecyBets.insert(bet, at: 0)
+            // 배팅 가능 목록 & 잔액 갱신
+            await fetchProphecyData()
+            await fetchMyData()
+            return true
+        } catch {
+            print("Failed to place prophecy bet: \(error)")
+            return false
+        }
+    }
+
     // MARK: - News
     @MainActor
     func fetchNews(category: NewsCategory?) async {

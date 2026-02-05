@@ -1100,4 +1100,92 @@ enum BetType: String {
     }
 }
 
+// MARK: - Prophecy (사용자 정의 예언)
+struct Prophecy: Identifiable, Codable {
+    let id: Int
+    let ownerId: Int
+    let ownerName: String
+    let content: String
+    let status: String        // OPEN, CLOSED
+    let result: Bool?         // nil(미정), true(성공), false(실패)
+    let successPool: Int
+    let failurePool: Int
+    let totalPool: Int
+    let createdAt: String
+    let closedAt: String?
 
+    var isOpen: Bool { status == "OPEN" }
+
+    var timeAgo: String {
+        // 간단한 시간 표시
+        guard let date = parseDate(createdAt) else { return "" }
+        let interval = Date().timeIntervalSince(date)
+        if interval < 60 { return "방금 전" }
+        if interval < 3600 { return "\(Int(interval / 60))분 전" }
+        if interval < 86400 { return "\(Int(interval / 3600))시간 전" }
+        return "\(Int(interval / 86400))일 전"
+    }
+
+    private func parseDate(_ s: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = formatter.date(from: s) { return d }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: s)
+    }
+}
+
+// MARK: - ProphecyBet (예언 배팅 내역)
+struct ProphecyBet: Identifiable, Codable {
+    let id: Int
+    let prophecyId: Int
+    let prophecyContent: String
+    let ownerId: Int
+    let ownerName: String
+    let amount: Int
+    let predictSuccess: Bool
+    let status: String         // IN_PROGRESS, HIT, MISS
+    let profitLoss: Int?
+    let createdAt: String
+    let settledAt: String?
+
+    var betTypeDisplay: String {
+        predictSuccess ? "성공" : "실패"
+    }
+
+    var statusDisplay: String {
+        switch status {
+        case "IN_PROGRESS": return "진행 중"
+        case "HIT": return "적중"
+        case "MISS": return "실패"
+        default: return status
+        }
+    }
+
+    var resultType: ProphecyBetResult {
+        switch status {
+        case "HIT": return .win
+        case "MISS": return .lose
+        default: return .pending
+        }
+    }
+}
+
+enum ProphecyBetResult {
+    case win, lose, pending
+}
+
+// MARK: - Prophecy API DTOs
+struct CreateProphecyRequest: Codable {
+    let content: String
+}
+
+struct ProphecyBetRequest: Codable {
+    let prophecyId: Int
+    let amount: Int
+    let predictSuccess: Bool
+}
+
+struct CloseProphecyRequest: Codable {
+    let success: Bool
+}

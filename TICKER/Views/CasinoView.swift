@@ -8,7 +8,21 @@ struct CasinoView: View {
     @State private var showInsufficientFundsAlert = false
     @State private var showBetSuccessAlert = false
     @State private var alertMessage = ""
-    
+
+    // 예언 등록
+    @State private var newProphecyContent = ""
+    @State private var isCreatingProphecy = false
+
+    // 예언 배팅
+    @State private var selectedProphecy: Prophecy?
+    @State private var prophecyBetAmount = ""
+    @State private var prophecyBetType: BetType = .success
+
+    // 예언 종료 확인
+    @State private var prophecyToClose: Prophecy?
+    @State private var showCloseConfirm = false
+    @State private var closeAsSuccess = true
+
     var selectedFriend: CasinoFriend? {
         appState.casinoFriends.first(where: { $0.id == selectedFriendId })
     }
@@ -18,18 +32,25 @@ struct CasinoView: View {
             VStack(spacing: 24) {
                 // Header
                 headerSection
-                
-                // 예언 배팅 (친구 성공/실패 예측)
+
+                // 나의 예언 등록
+                myProphecySection
+
+                // 친구 예언 배팅
+                friendProphecyBetSection
+
+                // 기존 예언 배팅 (친구 할 일)
                 prophecyBetSection
-                
-                // Recent Bets
-                recentBetsSection
+
+                // 내 배팅 내역
+                myBetsSection
             }
             .padding(24)
         }
         .onAppear {
             Task {
                 await appState.fetchCasinoData()
+                await appState.fetchProphecyData()
             }
         }
         .navigationTitle("카지노")
@@ -43,9 +64,24 @@ struct CasinoView: View {
         } message: {
             Text(alertMessage)
         }
+        .alert("예언 종료", isPresented: $showCloseConfirm) {
+            Button("성공", role: .none) {
+                if let p = prophecyToClose {
+                    Task { await closeProphecyAction(prophecyId: p.id, success: true) }
+                }
+            }
+            Button("실패", role: .destructive) {
+                if let p = prophecyToClose {
+                    Task { await closeProphecyAction(prophecyId: p.id, success: false) }
+                }
+            }
+            Button("취소", role: .cancel) {}
+        } message: {
+            Text("예언 결과를 선택하세요. 정산이 진행됩니다.")
+        }
     }
 
-    // MARK: - Bet Action
+    // MARK: - Actions
     private func placeBetAction() {
         guard let friendId = selectedFriendId else { return }
         guard let amount = Int(betAmount), amount > 0 else { return }
@@ -61,7 +97,6 @@ struct CasinoView: View {
             if success {
                 alertMessage = "\(selectedFriend?.name ?? "친구")에게 '\(selectedBetType.rawValue)' \(formatCasinoPrice(amount))P 베팅 완료!"
                 showBetSuccessAlert = true
-                // 초기화
                 betAmount = ""
                 selectedFriendId = nil
             } else {
@@ -71,12 +106,59 @@ struct CasinoView: View {
         }
     }
 
+    private func createProphecyAction() async {
+        guard !newProphecyContent.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        isCreatingProphecy = true
+        let success = await appState.createProphecy(content: newProphecyContent)
+        if success {
+            newProphecyContent = ""
+            alertMessage = "예언이 등록되었습니다!"
+            showBetSuccessAlert = true
+        }
+        isCreatingProphecy = false
+    }
+
+    private func placeProphecyBetAction() async {
+        guard let prophecy = selectedProphecy else { return }
+        guard let amount = Int(prophecyBetAmount), amount > 0 else { return }
+
+        if amount > appState.cash {
+            alertMessage = "보유 현금(\(formatCasinoPrice(appState.cash))P)이 부족합니다."
+            showInsufficientFundsAlert = true
+            return
+        }
+
+        let success = await appState.placeProphecyBet(
+            prophecyId: prophecy.id,
+            amount: amount,
+            predictSuccess: prophecyBetType == .success
+        )
+
+        if success {
+            alertMessage = "'\(prophecy.content)'에 '\(prophecyBetType.rawValue)' \(formatCasinoPrice(amount))P 베팅 완료!"
+            showBetSuccessAlert = true
+            prophecyBetAmount = ""
+            selectedProphecy = nil
+        } else {
+            alertMessage = "베팅에 실패했습니다."
+            showInsufficientFundsAlert = true
+        }
+    }
+
+    private func closeProphecyAction(prophecyId: Int, success: Bool) async {
+        let result = await appState.closeProphecy(prophecyId: prophecyId, success: success)
+        if result {
+            alertMessage = "예언이 종료되고 정산이 완료되었습니다!"
+            showBetSuccessAlert = true
+        }
+    }
+
     private func formatCasinoPrice(_ value: Int) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         return formatter.string(from: NSNumber(value: value)) ?? "0"
     }
-    
+
     // MARK: - Header Section
     private var headerSection: some View {
         HStack {
@@ -85,18 +167,18 @@ struct CasinoView: View {
                     Image(systemName: "dice.fill")
                         .font(.title)
                         .foregroundStyle(AppTheme.casino)
-                    
+
                     Text("카지노")
                         .font(.largeTitle.weight(.bold))
                 }
-                
-                Text("친구의 할 일 성공/실패를 예언하고 베팅하세요")
+
+                Text("예언을 등록하고 친구들의 예언에 베팅하세요!")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-            
+
             Spacer()
-            
+
             VStack(alignment: .trailing, spacing: 4) {
                 Text("베팅 가능 금액")
                     .font(.caption)
@@ -116,14 +198,195 @@ struct CasinoView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
-    
-    // MARK: - 예언 배팅 Section (친구 성공/실패 예측)
+
+    // MARK: - 나의 예언 등록 Section
+    private var myProphecySection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(.yellow)
+                Text("나의 예언 등록")
+                    .font(.headline)
+            }
+
+            Text("사소하고 재미있는 예언을 등록해보세요. 친구들이 배팅할 수 있습니다.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                TextField("예: 오늘 헬스장 간다, 커피 3잔 안 마시기", text: $newProphecyContent)
+                    .textFieldStyle(.roundedBorder)
+
+                Button {
+                    Task { await createProphecyAction() }
+                } label: {
+                    if isCreatingProphecy {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text("등록")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.yellow)
+                .disabled(newProphecyContent.trimmingCharacters(in: .whitespaces).isEmpty || isCreatingProphecy)
+            }
+
+            // 내 진행 중인 예언 목록
+            if !appState.myProphecies.filter({ $0.isOpen }).isEmpty {
+                Divider()
+                Text("내 진행 중인 예언")
+                    .font(.subheadline.weight(.semibold))
+
+                ForEach(appState.myProphecies.filter { $0.isOpen }) { prophecy in
+                    MyProphecyRow(prophecy: prophecy) {
+                        prophecyToClose = prophecy
+                        showCloseConfirm = true
+                    }
+                }
+            }
+        }
+        .padding()
+        .cardStyle()
+    }
+
+    // MARK: - 친구 예언 배팅 Section
+    private var friendProphecyBetSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Image(systemName: "person.2.fill")
+                    .foregroundStyle(.cyan)
+                Text("친구 예언 배팅")
+                    .font(.headline)
+            }
+
+            Text("친구들의 예언에 성공/실패를 예측하고 베팅하세요.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if appState.bettableProphecies.isEmpty {
+                Text("배팅 가능한 예언이 없습니다.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 12)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(appState.bettableProphecies) { prophecy in
+                            FriendProphecyCard(
+                                prophecy: prophecy,
+                                isSelected: selectedProphecy?.id == prophecy.id,
+                                onSelect: { selectedProphecy = prophecy }
+                            )
+                        }
+                    }
+                }
+
+                // 선택된 예언 배팅 UI
+                if let prophecy = selectedProphecy {
+                    VStack(spacing: 12) {
+                        Divider()
+
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(prophecy.ownerName)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(prophecy.content)
+                                    .font(.subheadline.weight(.medium))
+                            }
+                            Spacer()
+                            Button {
+                                selectedProphecy = nil
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        // 배팅 유형 선택
+                        HStack(spacing: 16) {
+                            BetTypeButton(
+                                type: .success,
+                                isSelected: prophecyBetType == .success,
+                                action: { prophecyBetType = .success }
+                            )
+
+                            BetTypeButton(
+                                type: .failure,
+                                isSelected: prophecyBetType == .failure,
+                                action: { prophecyBetType = .failure }
+                            )
+                        }
+
+                        // 배팅 금액
+                        HStack {
+                            TextField("금액 입력", text: $prophecyBetAmount)
+                                .textFieldStyle(.roundedBorder)
+                            Text("P")
+                                .foregroundStyle(.secondary)
+                        }
+
+                        HStack(spacing: 8) {
+                            ForEach(["1000", "5000", "10000", "50000"], id: \.self) { amount in
+                                Button(amount) {
+                                    prophecyBetAmount = amount
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+                        }
+
+                        // 풀 정보
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text("성공 풀")
+                                    .font(.caption)
+                                Text("\(formatCasinoPrice(prophecy.successPool))P")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.green)
+                            }
+                            Spacer()
+                            VStack(alignment: .trailing) {
+                                Text("실패 풀")
+                                    .font(.caption)
+                                Text("\(formatCasinoPrice(prophecy.failurePool))P")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.red)
+                            }
+                        }
+                        .padding(.vertical, 8)
+
+                        Button {
+                            Task { await placeProphecyBetAction() }
+                        } label: {
+                            Text("베팅하기")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(AppTheme.casino)
+                        .controlSize(.large)
+                        .disabled(prophecyBetAmount.isEmpty || Int(prophecyBetAmount) == nil)
+                    }
+                }
+            }
+        }
+        .padding()
+        .cardStyle()
+    }
+
+    // MARK: - 기존 예언 배팅 Section (친구 할 일 성공/실패 예측)
     private var prophecyBetSection: some View {
         VStack(spacing: 20) {
             VStack(alignment: .leading, spacing: 12) {
-                Text("예언 배팅")
-                    .font(.headline)
-                Text("친구를 선택하고, 할 일 성공/실패를 예언한 뒤 베팅하세요.")
+                HStack {
+                    Image(systemName: "checklist")
+                        .foregroundStyle(.orange)
+                    Text("할 일 배팅")
+                        .font(.headline)
+                }
+                Text("친구를 선택하고, 오늘 할 일 성공/실패를 예언한 뒤 베팅하세요.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -133,7 +396,7 @@ struct CasinoView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("베팅 대상 선택")
                     .font(.subheadline.weight(.semibold))
-                
+
                 if appState.casinoFriends.isEmpty {
                     Text("친구가 없습니다. 워치리스트에 친구를 추가하면 베팅할 수 있습니다.")
                         .font(.caption)
@@ -153,20 +416,20 @@ struct CasinoView: View {
                     }
                 }
             }
-            
+
             // Bet Type Selection
             if selectedFriend != nil {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("베팅 유형")
                         .font(.subheadline.weight(.semibold))
-                    
+
                     HStack(spacing: 16) {
                         BetTypeButton(
                             type: .success,
                             isSelected: selectedBetType == .success,
                             action: { selectedBetType = .success }
                         )
-                        
+
                         BetTypeButton(
                             type: .failure,
                             isSelected: selectedBetType == .failure,
@@ -175,21 +438,21 @@ struct CasinoView: View {
                     }
                 }
             }
-            
+
             // Bet Amount
             if selectedFriend != nil {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("베팅 금액 (P)")
                         .font(.subheadline.weight(.semibold))
-                    
+
                     HStack {
                         TextField("금액 입력", text: $betAmount)
                             .textFieldStyle(.roundedBorder)
-                        
+
                         Text("P")
                             .foregroundStyle(.secondary)
                     }
-                    
+
                     // Quick Amount Buttons
                     HStack(spacing: 8) {
                         ForEach(["1000", "5000", "10000", "50000"], id: \.self) { amount in
@@ -202,7 +465,7 @@ struct CasinoView: View {
                     }
                 }
             }
-            
+
             // Bet Summary
             if selectedFriend != nil && !betAmount.isEmpty {
                 betSummary
@@ -211,12 +474,12 @@ struct CasinoView: View {
         .padding()
         .cardStyle()
     }
-    
+
     // MARK: - Bet Summary
     private var betSummary: some View {
         VStack(spacing: 16) {
             Divider()
-            
+
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("베팅 대상")
@@ -225,9 +488,9 @@ struct CasinoView: View {
                     Text(selectedFriend?.name ?? "-")
                         .font(.subheadline.weight(.semibold))
                 }
-                
+
                 Spacer()
-                
+
                 VStack(alignment: .trailing, spacing: 4) {
                     Text("베팅 유형")
                         .font(.caption)
@@ -237,28 +500,28 @@ struct CasinoView: View {
                         .foregroundStyle(selectedBetType.color)
                 }
             }
-            
+
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("베팅 금액")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text("₩\(betAmount)")
+                    Text("\(betAmount)P")
                         .font(.subheadline.weight(.semibold))
                 }
-                
+
                 Spacer()
-                
+
                 VStack(alignment: .trailing, spacing: 4) {
                     Text("예상 수익")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text("₩\((Int(betAmount) ?? 0) * 2)")
+                    Text("\((Int(betAmount) ?? 0) * 2)P")
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(AppTheme.gain)
                 }
             }
-            
+
             Button {
                 placeBetAction()
             } label: {
@@ -270,36 +533,52 @@ struct CasinoView: View {
             .controlSize(.large)
         }
     }
-    
-    // MARK: - Recent Bets Section
-    private var recentBetsSection: some View {
+
+    // MARK: - 내 배팅 내역 Section
+    private var myBetsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("최근 베팅 내역")
+            Text("최근 배팅 내역")
                 .font(.headline)
-            
-            if appState.bettingHistory.isEmpty {
+
+            // 예언 배팅 내역
+            if !appState.myProphecyBets.isEmpty {
+                Text("예언 배팅")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                ForEach(appState.myProphecyBets.prefix(5)) { bet in
+                    ProphecyBetRow(bet: bet)
+                }
+            }
+
+            // 할 일 배팅 내역
+            if !appState.bettingHistory.isEmpty {
+                Text("할 일 배팅")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                ForEach(appState.bettingHistory.prefix(5)) { bet in
+                    RecentBetRow(
+                        target: bet.targetName,
+                        type: bet.betType == "SUCCESS" ? .success : .failure,
+                        amount: bet.betAmount,
+                        result: parseBetResult(bet.result),
+                        profit: bet.profitLoss ?? 0,
+                        unit: "P"
+                    )
+                }
+            }
+
+            if appState.myProphecyBets.isEmpty && appState.bettingHistory.isEmpty {
                 Text("최근 내역이 없습니다")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding()
-            } else {
-                VStack(spacing: 8) {
-                    ForEach(appState.bettingHistory) { bet in
-                        RecentBetRow(
-                            target: bet.targetName,
-                            type: bet.betType == "SUCCESS" ? .success : .failure,
-                            amount: bet.betAmount,
-                            result: parseBetResult(bet.result),
-                            profit: bet.profitLoss ?? 0,
-                            unit: "P"
-                        )
-                    }
-                }
             }
         }
     }
-    
+
     private func parseBetResult(_ result: String?) -> RecentBetRow.BetResult {
         guard let result = result?.lowercased() else { return .pending }
         switch result {
@@ -310,22 +589,165 @@ struct CasinoView: View {
     }
 }
 
+// MARK: - My Prophecy Row
+struct MyProphecyRow: View {
+    let prophecy: Prophecy
+    let onClose: () -> Void
+
+    private func formatPrice(_ value: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: value)) ?? "0"
+    }
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(prophecy.content)
+                    .font(.subheadline.weight(.medium))
+                HStack(spacing: 12) {
+                    Text("성공 풀: \(formatPrice(prophecy.successPool))P")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                    Text("실패 풀: \(formatPrice(prophecy.failurePool))P")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+
+            Spacer()
+
+            Button("종료") {
+                onClose()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .tint(.orange)
+        }
+        .padding(12)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+// MARK: - Friend Prophecy Card
+struct FriendProphecyCard: View {
+    let prophecy: Prophecy
+    let isSelected: Bool
+    let onSelect: () -> Void
+
+    private func formatPrice(_ value: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: value)) ?? "0"
+    }
+
+    var body: some View {
+        Button(action: onSelect) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    AvatarView(name: prophecy.ownerName, color: .cyan, size: 24)
+                    Text(prophecy.ownerName)
+                        .font(.caption.weight(.semibold))
+                }
+
+                Text(prophecy.content)
+                    .font(.subheadline)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                HStack {
+                    Text("총 \(formatPrice(prophecy.totalPool))P")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(prophecy.timeAgo)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .padding(12)
+            .frame(width: 200)
+            .background(isSelected ? Color.cyan.opacity(0.15) : Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? Color.cyan : Color.clear, lineWidth: 2)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Prophecy Bet Row
+struct ProphecyBetRow: View {
+    let bet: ProphecyBet
+
+    private func formatPrice(_ value: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: value)) ?? "0"
+    }
+
+    var body: some View {
+        HStack {
+            Circle()
+                .fill(bet.predictSuccess ? Color.green.opacity(0.3) : Color.red.opacity(0.3))
+                .frame(width: 8, height: 8)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(bet.ownerName)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(bet.prophecyContent)
+                    .font(.subheadline)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Text("\(formatPrice(bet.amount))P")
+                .font(.subheadline)
+
+            switch bet.resultType {
+            case .win:
+                Text("+\(formatPrice(bet.profitLoss ?? 0))P")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(AppTheme.gain)
+            case .lose:
+                Text("\(formatPrice(bet.profitLoss ?? 0))P")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(AppTheme.loss)
+            case .pending:
+                Text("진행 중")
+                    .font(.caption)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(Color.orange.opacity(0.2))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+            }
+        }
+        .padding()
+        .cardStyle()
+    }
+}
+
 // MARK: - Friend Bet Card
 struct FriendBetCard: View {
     let name: String
     var color: Color = .blue
     let isSelected: Bool
     let action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
             VStack(spacing: 8) {
                 AvatarView(name: name, color: color, size: 50)
-                
+
                 Text(name)
                     .font(.caption.weight(.medium))
-                
-                Text("TICKER") // Mock
+
+                Text("TICKER")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -346,16 +768,16 @@ struct BetTypeButton: View {
     let type: BetType
     let isSelected: Bool
     let action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
             VStack(spacing: 8) {
                 Image(systemName: type == .success ? "checkmark.circle.fill" : "xmark.circle.fill")
                     .font(.title)
-                
+
                 Text(type.rawValue)
                     .font(.subheadline.weight(.semibold))
-                
+
                 Text(type == .success ? "성공에 베팅" : "실패에 베팅")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -374,63 +796,6 @@ struct BetTypeButton: View {
     }
 }
 
-// MARK: - Prophecy Card
-struct ProphecyCard: View {
-    let title: String
-    let yesOdds: Double
-    let noOdds: Double
-    let deadline: String
-    let totalPool: Int
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.subheadline.weight(.medium))
-            
-            HStack {
-                Text(deadline)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                
-                Spacer()
-                
-                Text("총 베팅: ₩\(totalPool)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            
-            HStack(spacing: 12) {
-                Button(action: {}) {
-                    VStack(spacing: 4) {
-                        Text("YES")
-                            .font(.caption.weight(.semibold))
-                        Text("x\(String(format: "%.1f", yesOdds))")
-                            .font(.caption2)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .tint(.green)
-                
-                Button(action: {}) {
-                    VStack(spacing: 4) {
-                        Text("NO")
-                            .font(.caption.weight(.semibold))
-                        Text("x\(String(format: "%.1f", noOdds))")
-                            .font(.caption2)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .tint(.red)
-            }
-        }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-    }
-}
-
 // MARK: - Recent Bet Row
 struct RecentBetRow: View {
     let target: String
@@ -439,29 +804,29 @@ struct RecentBetRow: View {
     let result: BetResult
     let profit: Int
     var unit: String = "P"
-    
+
     enum BetResult {
         case win, lose, pending
     }
-    
+
     var body: some View {
         HStack {
             Circle()
                 .fill(type.color.opacity(0.2))
                 .frame(width: 8, height: 8)
-            
+
             Text(target)
                 .font(.subheadline)
-            
+
             Text("(\(type.rawValue))")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            
+
             Spacer()
-            
+
             Text("\(amount)\(unit)")
                 .font(.subheadline)
-            
+
             switch result {
             case .win:
                 Text("+\(profit)\(unit)")
@@ -490,5 +855,3 @@ struct RecentBetRow: View {
         .environmentObject(AppState())
         .frame(width: 800, height: 900)
 }
-
-
