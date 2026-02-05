@@ -23,7 +23,7 @@ public class ProphecyService {
     private final ProphecyRepository prophecyRepository;
     private final ProphecyBetRepository prophecyBetRepository;
     private final UserRepository userRepository;
-    private final WatchlistRepository watchlistRepository;
+    private final FriendshipRepository friendshipRepository;
     private final ActivityService activityService;
 
     // ==================== 예언 관리 ====================
@@ -62,14 +62,14 @@ public class ProphecyService {
     }
 
     /**
-     * 배팅 가능한 예언 목록 (친구들의 OPEN 상태 예언)
+     * 배팅 가능한 예언 목록 (수락된 친구들의 OPEN 상태 예언, 양방향)
      */
     @Transactional(readOnly = true)
     public List<ProphecyDto> getBettableProphecies(Long userId) {
-        // 친구 ID 목록 가져오기
-        List<Long> friendIds = watchlistRepository.findByUserIdWithWatchedUser(userId)
+        // 수락된 친구 ID 목록 (양방향 친구 관계)
+        List<Long> friendIds = friendshipRepository.findAcceptedFriendsByUserId(userId)
                 .stream()
-                .map(w -> w.getWatchedUser().getId())
+                .map(f -> f.getRequester().getId().equals(userId) ? f.getAddressee().getId() : f.getRequester().getId())
                 .collect(Collectors.toList());
 
         if (friendIds.isEmpty()) {
