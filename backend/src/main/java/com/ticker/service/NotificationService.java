@@ -1,5 +1,6 @@
 package com.ticker.service;
 
+import com.ticker.dto.NewsCommentDto;
 import com.ticker.dto.NotificationDto;
 import com.ticker.model.User;
 import lombok.RequiredArgsConstructor;
@@ -147,5 +148,17 @@ public class NotificationService {
                 .fromUserName(name)
                 .fromUserImageUrl(whoAdded.getProfileImageUrl())
                 .build());
+    }
+
+    private static final String NEWS_COMMENTS_TOPIC_PREFIX = "/topic/news/";
+    private static final String NEWS_COMMENTS_TOPIC_SUFFIX = "/comments";
+
+    /**
+     * 뉴스 댓글 실시간 브로드캐스트 (해당 글 상세 보는 모든 클라이언트에 반영)
+     * 구독: /topic/news/{postId}/comments
+     */
+    public void broadcastNewsComment(Long postId, NewsCommentDto comment) {
+        String destination = NEWS_COMMENTS_TOPIC_PREFIX + postId + NEWS_COMMENTS_TOPIC_SUFFIX;
+        messagingTemplate.convertAndSend(destination, comment);
     }
 }

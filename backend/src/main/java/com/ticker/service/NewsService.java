@@ -27,6 +27,7 @@ public class NewsService {
     private final NewsPostRepository newsPostRepository;
     private final NewsCommentRepository newsCommentRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     /**
      * 뉴스 목록 조회 (카테고리 필터, 전체는 null)
@@ -86,7 +87,9 @@ public class NewsService {
                 .content(request.getContent())
                 .build();
         comment = newsCommentRepository.save(comment);
-        return toCommentDto(comment);
+        NewsCommentDto dto = toCommentDto(comment);
+        notificationService.broadcastNewsComment(postId, dto);
+        return dto;
     }
 
     /**
