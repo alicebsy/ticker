@@ -92,22 +92,42 @@ struct NewsView: View {
                                     }
                                 }
                         }
-
-                        if filteredPosts.isEmpty {
-                            VStack(spacing: 12) {
-                                Image(systemName: "newspaper")
-                                    .font(.system(size: 40))
-                                    .foregroundStyle(AppTheme.tertiaryText)
-                                Text("아직 글이 없습니다")
-                                    .font(.subheadline)
-                                    .foregroundStyle(AppTheme.secondaryText)
-                                Text("첫 번째 글을 작성해보세요!")
-                                    .font(.caption)
-                                    .foregroundStyle(AppTheme.tertiaryText)
+                    }
+                    .onChange(of: selectedCategory) { _, newCat in
+                        Task {
+                            await appState.fetchNews(category: newCat == .all ? nil : newCat)
+                            // 선택된 게시글이 있으면 최신 데이터로 동기화
+                            if let currentPost = selectedPost,
+                               let updated = appState.newsPosts.first(where: { $0.id == currentPost.id }) {
+                                selectedPost = updated
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 60)
                         }
+                    }
+                    .onAppear {
+                        Task {
+                            await appState.fetchNews(category: selectedCategory == .all ? nil : selectedCategory)
+                            // 선택된 게시글이 있으면 최신 데이터로 동기화
+                            if let currentPost = selectedPost,
+                               let updated = appState.newsPosts.first(where: { $0.id == currentPost.id }) {
+                                selectedPost = updated
+                            }
+                        }
+                    }
+
+                    if filteredPosts.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "newspaper")
+                                .font(.system(size: 40))
+                                .foregroundStyle(AppTheme.tertiaryText)
+                            Text("아직 글이 없습니다")
+                                .font(.subheadline)
+                                .foregroundStyle(AppTheme.secondaryText)
+                            Text("첫 번째 글을 작성해보세요!")
+                                .font(.caption)
+                                .foregroundStyle(AppTheme.tertiaryText)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 60)
                     }
                 }
                 .padding(24)
@@ -117,12 +137,16 @@ struct NewsView: View {
 
             // MARK: - Right: Post Detail
             if let post = selectedPost {
-                NewsPostDetailView(post: post) { updatedPost in
+                let postToShow = appState.newsPosts.first(where: { $0.id == post.id }) ?? post
+                NewsPostDetailView(post: postToShow, onUpdate: { updatedPost in
                     if let index = appState.newsPosts.firstIndex(where: { $0.id == updatedPost.id }) {
                         appState.newsPosts[index] = updatedPost
                         selectedPost = updatedPost
                     }
-                }
+                }, onDelete: {
+                    selectedPost = nil
+                })
+                .environmentObject(appState)
                 .frame(width: 360)
                 .background(AppTheme.background)
             } else {
@@ -144,9 +168,8 @@ struct NewsView: View {
             }
         }
         .sheet(isPresented: $showNewPostSheet) {
-            NewPostSheet { newPost in
-                appState.newsPosts.insert(newPost, at: 0)
-            }
+            NewPostSheet()
+                .environmentObject(appState)
         }
     }
 }
@@ -250,15 +273,25 @@ struct NewsPostRow: View {
 
 // MARK: - News Post Detail View
 struct NewsPostDetailView: View {
+    @EnvironmentObject var appState: AppState
     let post: NewsPost
     var onUpdate: (NewsPost) -> Void
+    var onDelete: () -> Void
     @State private var newComment: String = ""
+    @State private var showEditSheet = false
+    @State private var showDeleteConfirm = false
+    @State private var isSubmittingComment = false
+
+    private var isMyPost: Bool {
+        guard let uid = appState.currentUser?.id else { return false }
+        return post.authorId == uid
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    // Category + Time
+                    // Category + Time + Edit/Delete (본인 글만)
                     HStack {
                         HStack(spacing: 4) {
                             Image(systemName: post.category.icon)
@@ -273,6 +306,26 @@ struct NewsPostDetailView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 6))
 
                         Spacer()
+
+                        if isMyPost {
+                            Button {
+                                showEditSheet = true
+                            } label: {
+                                Image(systemName: "pencil")
+                                    .font(.caption)
+                                    .foregroundStyle(AppTheme.secondaryText)
+                            }
+                            .buttonStyle(.plain)
+
+                            Button {
+                                showDeleteConfirm = true
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.caption)
+                                    .foregroundStyle(.red.opacity(0.9))
+                            }
+                            .buttonStyle(.plain)
+                        }
 
                         Text(post.timeAgo)
                             .font(.caption)
@@ -321,9 +374,12 @@ struct NewsPostDetailView: View {
                     // Likes
                     HStack(spacing: 16) {
                         Button {
-                            var updated = post
-                            updated.likes += 1
-                            onUpdate(updated)
+                            Task {
+                                await appState.likeNewsPost(postId: post.id)
+                                if let updated = appState.newsPosts.first(where: { $0.id == post.id }) {
+                                    onUpdate(updated)
+                                }
+                            }
                         } label: {
                             HStack(spacing: 4) {
                                 Image(systemName: "heart")
@@ -401,27 +457,47 @@ struct NewsPostDetailView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8))
 
                 Button {
-                    guard !newComment.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-                    var updated = post
-                    let comment = NewsComment(
-                        id: UUID(),
-                        author: "나",
-                        content: newComment,
-                        timestamp: Date()
-                    )
-                    updated.comments.append(comment)
-                    onUpdate(updated)
-                    newComment = ""
+                    let content = newComment.trimmingCharacters(in: .whitespaces)
+                    guard !content.isEmpty, !isSubmittingComment else { return }
+                    isSubmittingComment = true
+                    Task {
+                        if await appState.addNewsComment(postId: post.id, content: content) != nil {
+                            newComment = ""
+                            if let updated = appState.newsPosts.first(where: { $0.id == post.id }) {
+                                onUpdate(updated)
+                            }
+                        }
+                        isSubmittingComment = false
+                    }
                 } label: {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.title2)
                         .foregroundStyle(.cyan)
                 }
                 .buttonStyle(.plain)
-                .disabled(newComment.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(newComment.trimmingCharacters(in: .whitespaces).isEmpty || isSubmittingComment)
             }
             .padding(12)
             .background(AppTheme.cardBackground)
+        }
+        .sheet(isPresented: $showEditSheet) {
+            EditPostSheet(post: post) { updatedPost in
+                onUpdate(updatedPost)
+                showEditSheet = false
+            }
+            .environmentObject(appState)
+        }
+        .alert("글 삭제", isPresented: $showDeleteConfirm) {
+            Button("취소", role: .cancel) {}
+            Button("삭제", role: .destructive) {
+                Task {
+                    if await appState.deleteNewsPost(postId: post.id) {
+                        onDelete()
+                    }
+                }
+            }
+        } message: {
+            Text("이 글을 삭제할까요? 삭제된 글은 복구할 수 없습니다.")
         }
     }
 }
@@ -429,12 +505,12 @@ struct NewsPostDetailView: View {
 // MARK: - New Post Sheet
 struct NewPostSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var appState: AppState
     @State private var title: String = ""
     @State private var content: String = ""
     @State private var category: NewsCategory = .free
     @State private var isAnonymous: Bool = false
-
-    var onSubmit: (NewsPost) -> Void
+    @State private var isSubmitting = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -455,25 +531,18 @@ struct NewPostSheet: View {
                 Spacer()
 
                 Button("게시") {
-                    let post = NewsPost(
-                        id: UUID(),
-                        author: "김주식",
-                        authorTicker: "JUSIK",
-                        avatarColor: .green,
-                        title: title,
-                        content: content,
-                        category: category,
-                        likes: 0,
-                        comments: [],
-                        timestamp: Date(),
-                        isAnonymous: isAnonymous
-                    )
-                    onSubmit(post)
-                    dismiss()
+                    guard canSubmit, !isSubmitting else { return }
+                    isSubmitting = true
+                    Task {
+                        if await appState.createNewsPost(title: title, content: content, category: category, anonymous: isAnonymous) != nil {
+                            dismiss()
+                        }
+                        isSubmitting = false
+                    }
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(canSubmit ? .cyan : AppTheme.tertiaryText)
-                .disabled(!canSubmit)
+                .foregroundStyle(canSubmit && !isSubmitting ? .cyan : AppTheme.tertiaryText)
+                .disabled(!canSubmit || isSubmitting)
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
@@ -565,6 +634,141 @@ struct NewPostSheet: View {
         }
         .frame(width: 520, height: 520)
         .background(AppTheme.cardBackground)
+    }
+
+    private var canSubmit: Bool {
+        !title.trimmingCharacters(in: .whitespaces).isEmpty &&
+        !content.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+}
+
+// MARK: - Edit Post Sheet
+struct EditPostSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var appState: AppState
+    let post: NewsPost
+    var onSave: (NewsPost) -> Void
+    @State private var title: String = ""
+    @State private var content: String = ""
+    @State private var category: NewsCategory = .free
+    @State private var isAnonymous: Bool = false
+    @State private var isSubmitting = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button("취소") { dismiss() }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(AppTheme.secondaryText)
+                Spacer()
+                Text("글 수정")
+                    .font(.headline)
+                    .foregroundStyle(AppTheme.primaryText)
+                Spacer()
+                Button("저장") {
+                    guard canSubmit, !isSubmitting else { return }
+                    isSubmitting = true
+                    Task {
+                        if let updated = await appState.updateNewsPost(postId: post.id, title: title, content: content, category: category, anonymous: isAnonymous) {
+                            onSave(updated)
+                            dismiss()
+                        }
+                        isSubmitting = false
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(canSubmit && !isSubmitting ? .cyan : AppTheme.tertiaryText)
+                .disabled(!canSubmit || isSubmitting)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+
+            Divider().background(AppTheme.border)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("카테고리")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(AppTheme.secondaryText)
+                        HStack(spacing: 8) {
+                            ForEach(NewsCategory.allCases.filter { $0 != .all }, id: \.self) { cat in
+                                Button {
+                                    category = cat
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: cat.icon)
+                                            .font(.caption)
+                                        Text(cat.rawValue)
+                                            .font(.subheadline)
+                                    }
+                                    .foregroundStyle(category == cat ? .white : AppTheme.secondaryText)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        category == cat
+                                            ? AnyShapeStyle(cat.color.gradient)
+                                            : AnyShapeStyle(AppTheme.cardBackgroundLight)
+                                    )
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    Toggle(isOn: $isAnonymous) {
+                        HStack(spacing: 6) {
+                            Image(systemName: isAnonymous ? "person.fill.questionmark" : "person.fill")
+                                .foregroundStyle(isAnonymous ? .cyan : AppTheme.secondaryText)
+                            Text("익명으로 작성")
+                                .font(.subheadline)
+                                .foregroundStyle(AppTheme.primaryText)
+                        }
+                    }
+                    .toggleStyle(.switch)
+                    .tint(.cyan)
+
+                    Divider().background(AppTheme.border)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("제목")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(AppTheme.secondaryText)
+                        TextField("제목을 입력하세요", text: $title)
+                            .textFieldStyle(.plain)
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(AppTheme.primaryText)
+                            .padding(12)
+                            .background(AppTheme.cardBackgroundLight)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("내용")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(AppTheme.secondaryText)
+                        TextEditor(text: $content)
+                            .font(.subheadline)
+                            .foregroundStyle(AppTheme.primaryText)
+                            .scrollContentBackground(.hidden)
+                            .padding(12)
+                            .frame(minHeight: 200)
+                            .background(AppTheme.cardBackgroundLight)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                }
+                .padding(20)
+            }
+        }
+        .frame(width: 520, height: 520)
+        .background(AppTheme.cardBackground)
+        .onAppear {
+            title = post.title
+            content = post.content
+            category = post.category
+            isAnonymous = post.isAnonymous
+        }
     }
 
     private var canSubmit: Bool {

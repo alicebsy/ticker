@@ -101,7 +101,10 @@ public class NewsService {
     }
 
     private NewsPostDto toListDto(NewsPost p) {
-        int commentCount = (int) newsCommentRepository.countByPostId(p.getId());
+        var comments = newsCommentRepository.findByPostIdWithAuthorOrderByCreatedAtAsc(p.getId());
+        List<NewsCommentDto> commentDtos = comments.stream()
+                .map(this::toCommentDto)
+                .collect(Collectors.toList());
         return NewsPostDto.builder()
                 .id(p.getId())
                 .authorId(p.getAuthor().getId())
@@ -113,8 +116,8 @@ public class NewsService {
                 .likes(p.getLikes())
                 .timestamp(p.getCreatedAt())
                 .anonymous(p.isAnonymous())
-                .commentCount(commentCount)
-                .comments(null)
+                .commentCount(commentDtos.size())
+                .comments(commentDtos)
                 .build();
     }
 
